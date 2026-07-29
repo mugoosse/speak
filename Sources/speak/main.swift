@@ -9,8 +9,19 @@ import MLXAudioSTT
 // Config
 // ---------------------------------------------------------------------------
 
+/// English-only by design.
+///
+/// v3 is multilingual over 25 European languages and, on a short utterance with
+/// little context, will happily decode English speech as Cyrillic. mlx-audio
+/// cannot constrain it: its `language` parameter is copied into the output
+/// struct and never reaches the decoder. (TypeWhisper restricts v3 by language,
+/// but it runs Parakeet through FluidAudio, whose ASR manager takes a real
+/// `language:` argument.)
+///
+/// v2 is the English-only predecessor, same speed, and cannot produce Cyrillic
+/// at all. Set SPEAK_MODEL to override, e.g. back to v3 for other languages.
 let MODEL = ProcessInfo.processInfo.environment["SPEAK_MODEL"]
-    ?? "mlx-community/parakeet-tdt-0.6b-v3"
+    ?? "mlx-community/parakeet-tdt-0.6b-v2"
 let AUTO_PASTE = ProcessInfo.processInfo.environment["SPEAK_AUTOPASTE"] == "1"
 
 /// Device-dependent modifier masks. NSEvent's `.shift` cannot tell left from
@@ -19,6 +30,14 @@ let LEFT_SHIFT_MASK: UInt = 0x0000_0002
 let FN_KEYCODE: UInt16 = 63
 
 let SAMPLE_RATE = 16000.0
+
+/// Diagnostics on stderr. `SPEAK_DEBUG=1` additionally traces every modifier
+/// change, which is how you find out what your keyboard actually reports.
+let DEBUG = ProcessInfo.processInfo.environment["SPEAK_DEBUG"] == "1"
+
+func log(_ s: String) {
+    FileHandle.standardError.write("[speak] \(s)\n".data(using: .utf8)!)
+}
 
 // ---------------------------------------------------------------------------
 // Audio capture: mic -> 16 kHz mono Float32, which is what Parakeet expects
@@ -110,7 +129,15 @@ actor Transcriber {
 
     func transcribe(_ pcm: [Float]) -> String? {
         guard let m = model else { return nil }
-        let audio = MLXArray(pcm)
+        // Pad very short clips with silence. Parakeet degrades badly on inputs
+        // shorter than about a second, and a one-word dictation is easily that
+        // short. TypeWhisper does the same thing for the same reason.
+        var samples = pcm
+        let minimum = Int(SAMPLE_RATE)
+        if samples.count < minimum {
+            samples.append(contentsOf: repeatElement(0, count: minimum - samples.count))
+        }
+        let audio = MLXArray(samples)
         let out = m.generate(audio: audio, generationParameters: params())
         let text = out.text.trimmingCharacters(in: .whitespacesAndNewlines)
         return text.isEmpty ? nil : text
@@ -126,7 +153,7 @@ final class App: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let recorder = Recorder()
     private let transcriber = Transcriber()
-    private var monitors: [Any] = []
+    private var eventTap: CFMachPort?
     private var fnDown = false
     private var leftShiftDown = false
     private var comboLatched = false
@@ -167,6 +194,7 @@ final class App: NSObject, NSApplicationDelegate {
         statusItem.button?.image = NSImage(
             systemSymbolName: symbol, accessibilityDescription: tip)
         statusItem.button?.toolTip = "speak — \(tip)"
+        log(tip)
     }
 
     private func requestMic() {
@@ -184,25 +212,51 @@ final class App: NSObject, NSApplicationDelegate {
         return AXIsProcessTrustedWithOptions(opts as CFDictionary)
     }
 
-    /// Modifier-only chords never arrive as keyDown, so watch flagsChanged and
-    /// reconstruct the chord from device-dependent flags.
+    /// Modifier-only chords never arrive as keyDown, so we watch flagsChanged.
+    ///
+    /// This uses a CGEventTap rather than an NSEvent global monitor because on
+    /// Apple Silicon the Globe/Fn key is swallowed by the system before it
+    /// reaches NSEvent: a global monitor sees the shift half of the chord and
+    /// never the Fn half. The tap sits lower down and reports Fn as
+    /// `.maskSecondaryFn`.
     private func installHotkey() {
-        if let g = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: {
-            [weak self] e in Task { @MainActor in self?.handleFlags(e) }
-        }) { monitors.append(g) }
+        let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+        let me = Unmanaged.passUnretained(self).toOpaque()
 
-        if let l = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: {
-            [weak self] e in self?.handleFlags(e); return e
-        }) { monitors.append(l) }
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,           // observe only, never swallow keys
+            eventsOfInterest: mask,
+            callback: { _, _, event, ctx in
+                if let ctx {
+                    let app = Unmanaged<App>.fromOpaque(ctx).takeUnretainedValue()
+                    let flags = event.flags
+                    Task { @MainActor in app.handleFlags(flags) }
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: me
+        ) else {
+            setIcon("exclamationmark.triangle", "event tap refused; check Accessibility")
+            return
+        }
+
+        eventTap = tap
+        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        log("hotkey armed (CGEventTap)")
     }
 
-    private func handleFlags(_ e: NSEvent) {
-        // `.function` is also set by arrows and F-keys, so only trust it when
-        // the physical Fn key is what changed.
-        if e.keyCode == FN_KEYCODE {
-            fnDown = e.modifierFlags.contains(.function)
+    fileprivate func handleFlags(_ flags: CGEventFlags) {
+        fnDown = flags.contains(.maskSecondaryFn)
+        leftShiftDown = (flags.rawValue & UInt64(LEFT_SHIFT_MASK)) != 0
+
+        if DEBUG {
+            log(String(format: "raw=0x%09llx fn=%@ lshift=%@",
+                       flags.rawValue, fnDown ? "Y" : "n", leftShiftDown ? "Y" : "n"))
         }
-        leftShiftDown = (e.modifierFlags.rawValue & LEFT_SHIFT_MASK) != 0
 
         if fnDown && leftShiftDown {
             if !comboLatched { comboLatched = true; toggle() }
