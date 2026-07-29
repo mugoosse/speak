@@ -1,0 +1,98 @@
+name: Release
+
+# Tag a version and this builds, signs, notarizes and publishes it:
+#
+#   echo 1.0.1 > VERSION && git commit -am "1.0.1" && git tag v1.0.1
+#   git push && git push --tags
+#
+# Signing needs four repository secrets. Without them the build still runs and
+# produces artifacts, just unsigned, so a fork can build without any setup:
+#
+#   SIGNING_CERTIFICATE_P12   base64 of a Developer ID Application .p12
+#                             base64 -i cert.p12 | pbcopy
+#   SIGNING_CERTIFICATE_PWD   password used when exporting that .p12
+#   NOTARY_APPLE_ID           Apple ID email
+#   NOTARY_TEAM_ID            10-character team identifier
+#   NOTARY_PASSWORD           app-specific password from appleid.apple.com
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Apple Silicon runner: the build is arm64-only and Metal needs real
+    # hardware, not a cross-compile.
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # make_app.sh derives the build number from commit count
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      # SwiftPM alone never compiles MLX's Metal kernels, and Xcode 16+ ships
+      # the Metal compiler as a separate component.
+      - name: Install Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: .xcbuild/SourcePackages
+          key: spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-
+
+      - name: Import signing certificate
+        if: env.HAS_CERT == 'true'
+        env:
+          HAS_CERT: ${{ secrets.SIGNING_CERTIFICATE_P12 != '' }}
+          CERT_P12: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
+          CERT_PWD: ${{ secrets.SIGNING_CERTIFICATE_PWD }}
+        run: |
+          # A dedicated keychain, unlocked for this job only, so the runner
+          # never prompts and nothing leaks into the default keychain.
+          KEYCHAIN=$RUNNER_TEMP/build.keychain
+          PASSWORD=$(uuidgen)
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$CERT_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Store notarization credentials
+        if: ${{ secrets.NOTARY_APPLE_ID != '' }}
+        run: |
+          xcrun notarytool store-credentials speak-notary \
+            --apple-id "${{ secrets.NOTARY_APPLE_ID }}" \
+            --team-id "${{ secrets.NOTARY_TEAM_ID }}" \
+            --password "${{ secrets.NOTARY_PASSWORD }}"
+
+      - name: Build and package
+        run: ./release.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(tr -d ' \n' < VERSION)
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/Speak-$VERSION.zip" "dist/Speak-$VERSION.dmg" \
+            --title "Speak $VERSION" \
+            --notes-file RELEASE_NOTES.md \
+          || gh release upload "${GITHUB_REF_NAME}" \
+            "dist/Speak-$VERSION.zip" "dist/Speak-$VERSION.dmg" --clobber
+
+      - name: Report checksums
+        run: shasum -a 256 dist/*.zip dist/*.dmg

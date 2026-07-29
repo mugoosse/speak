@@ -10,25 +10,41 @@ leaves the machine.
 
 ## Install
 
-Requires Apple Silicon, macOS 14+ (macOS 26+ for Apple Intelligence), Xcode 16+.
+### Homebrew
 
 ```sh
-git clone <this repo> && cd speak
-xcodebuild -downloadComponent MetalToolchain   # one-time, ~688 MB
-./install.sh
+brew install --cask mugoosse/tap/speak
 ```
 
-`install.sh` builds, bundles, signs, installs to `/Applications/Speak.app`, and
-restarts the running copy.
+### Download
 
-A setup window then walks through four steps: microphone, accessibility,
-choosing an engine, and done. It ticks each permission off as it lands and arms
-the shortcut without needing a relaunch.
+Grab the latest `.dmg` from [Releases](https://github.com/mugoosse/speak/releases),
+open it, and drag **Speak** to Applications.
+
+Requires Apple Silicon and macOS 14 or later. macOS 26 for the Apple
+Intelligence engine.
+
+### First launch
+
+Speak asks for two permissions, and a setup window walks through both:
+
+1. **Microphone**, so it can hear you.
+2. **Accessibility**, so the shortcut works while another app is focused.
 
 Accessibility is not optional: a modifier chord never arrives as a `keyDown`,
-so it has to be reconstructed from a low-level event tap.
+so it has to be read from a low-level event tap, which macOS only allows for
+trusted apps.
 
-> If **Speak** is listed in Accessibility but the shortcut does nothing, remove
+> **If macOS says Speak "cannot be opened because it is from an unidentified
+> developer":** right-click the app and choose **Open**, then **Open** again. On
+> macOS 15 and later, go to System Settings > Privacy & Security, scroll to the
+> bottom, and click **Open Anyway**. This is a one-time step, and it does not
+> apply to Homebrew installs.
+>
+> Releases are signed but not yet notarized, which is what triggers that
+> warning.
+
+> **If Speak is listed in Accessibility but the shortcut does nothing:** remove
 > it with the minus button and add it again. macOS keeps a stale entry after an
 > app is replaced.
 
@@ -217,7 +233,10 @@ mlx-audio's design, not something Speak controls.
 Apple Intelligence adds nothing of its own; its assets are system-managed and
 usually already present because system dictation uses them.
 
-## Building by hand
+## Building from source
+
+Only needed to develop Speak; the releases above are prebuilt.
+
 
 ```sh
 ./build.sh      # xcodebuild wrapper

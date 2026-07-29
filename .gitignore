@@ -5,3 +5,4 @@ Speak.app/
 speak.app/
 *.log
 .DS_Store
+dist/

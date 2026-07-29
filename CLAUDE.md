@@ -136,6 +136,32 @@ connect time and changes when a device is replugged.
   Most comments in this codebase mark a trap; keep them when editing nearby.
 - UI copy states the trade-off rather than hiding it in a tooltip.
 
+## Releasing
+
+`VERSION` is the single source of truth for the marketing version.
+`CFBundleVersion` is derived from `git rev-list --count HEAD`, so it always
+increases without anyone maintaining it.
+
+```sh
+echo 1.0.1 > VERSION
+git commit -am "1.0.1" && git tag v1.0.1
+git push && git push --tags        # CI builds, notarizes and publishes
+./release.sh                       # or do it locally, artifacts land in dist/
+./release.sh --publish             # local build plus GitHub release
+```
+
+`release.sh` notarizes only when both a Developer ID Application certificate
+and a stored `notarytool` profile exist. Otherwise it still produces artifacts
+and warns that users will meet Gatekeeper. It always prints the `spctl` verdict,
+so a release that would be blocked is obvious before publishing.
+
+Signing uses the Hardened Runtime, which notarization requires. That is why
+`Speak.entitlements` exists: without `com.apple.security.device.audio-input`
+the runtime blocks the microphone.
+
+After releasing, bump `version` and `sha256` in the Homebrew cask at
+`../homebrew-tap/Casks/speak.rb`.
+
 ## Testing
 
 There is no test target. Verification is manual and mostly through
