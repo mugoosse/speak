@@ -2,3 +2,4 @@
 .xcbuild/
 .swiftpm/
 *.log
+speak.app/
