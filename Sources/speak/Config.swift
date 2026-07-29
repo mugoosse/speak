@@ -39,14 +39,17 @@ struct ModelChoice {
     /// while downloading, so being a few MB out is harmless.
     let approxBytes: Int64
 
+    /// Titles name the model, details describe what it can do. Mixing the two
+    /// (a "Multilingual" option next to an "Apple Intelligence" one) makes the
+    /// list read as though it is comparing different kinds of thing.
     static let all: [ModelChoice] = {
         var list: [ModelChoice] = [
-            .init(id: "v2", title: "English only",
-                  detail: "Parakeet v2 · most accurate · 2.4 GB download",
+            .init(id: "v2", title: "Parakeet v2",
+                  detail: "English only · most accurate · 2.4 GB download",
                   repo: "mlx-community/parakeet-tdt-0.6b-v2",
                   approxBytes: 2_471_601_146),
-            .init(id: "v3", title: "Multilingual",
-                  detail: "Parakeet v3 · 25 languages · may misdetect short clips"
+            .init(id: "v3", title: "Parakeet v3",
+                  detail: "25 languages · may misdetect short clips"
                         + " · 2.4 GB download",
                   repo: "mlx-community/parakeet-tdt-0.6b-v3",
                   approxBytes: 2_508_579_601),

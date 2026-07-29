@@ -51,9 +51,33 @@ Choose in **Settings → Model**, or during setup.
 
 | Engine | Trade-off |
 |---|---|
-| **English only** (default) | Parakeet v2 · most accurate · 2.4 GB download |
-| **Multilingual** | Parakeet v3 · 25 languages · may misdetect short clips · 2.4 GB |
+| **Parakeet v2** (default) | English only · most accurate · 2.4 GB download |
+| **Parakeet v3** | 25 languages · may misdetect short clips · 2.4 GB download |
 | **Apple Intelligence** | Built in · no download · ready immediately · less accurate |
+
+### Where the Parakeet model comes from
+
+[Parakeet TDT](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) is NVIDIA's
+speech recognition model, released under CC-BY-4.0. Speak uses the MLX
+conversions published by the [mlx-community](https://huggingface.co/mlx-community)
+project, which repackage the NeMo weights to run on Apple Silicon:
+
+| Engine | Repository |
+|---|---|
+| Parakeet v2 | [`mlx-community/parakeet-tdt-0.6b-v2`](https://huggingface.co/mlx-community/parakeet-tdt-0.6b-v2) |
+| Parakeet v3 | [`mlx-community/parakeet-tdt-0.6b-v3`](https://huggingface.co/mlx-community/parakeet-tdt-0.6b-v3) |
+
+They are fetched from Hugging Face the first time you select one, by
+[mlx-audio-swift](https://github.com/Blaizzy/mlx-audio-swift) via
+[swift-huggingface](https://github.com/huggingface/swift-huggingface). No
+account or token is needed; both repositories are public.
+
+**That download is the only time Speak touches the network.** Transcription
+never does, so once the model is on disk the app works offline. Apple
+Intelligence never downloads anything through Speak, since its assets are
+managed by macOS.
+
+Settings > Model links to the exact repository in use.
 
 ### Why Parakeet v2 by default
 

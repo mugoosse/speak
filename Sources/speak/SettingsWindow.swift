@@ -378,10 +378,35 @@ final class ModelPane: Pane {
         }
 
         stack.addArrangedSubview(separator())
-        stack.addArrangedSubview(caption(
-            "Switching downloads the model on first use, about 2.5 GB, then "
-            + "keeps it in ~/.cache/huggingface. Transcription stays local "
-            + "either way."))
+
+        if Settings.choice.kind == .apple {
+            stack.addArrangedSubview(caption(
+                "Apple Intelligence is part of macOS, so there is nothing to "
+                + "download. Transcription stays on this Mac."))
+        } else {
+            stack.addArrangedSubview(heading("Where the model comes from"))
+            stack.addArrangedSubview(caption(
+                "Parakeet is NVIDIA's speech model, converted for Apple Silicon "
+                + "by the mlx-community project and downloaded from Hugging Face "
+                + "on first use. CC-BY-4.0."))
+
+            let link = NSButton(title: "huggingface.co/\(Settings.choice.repo)",
+                                target: self, action: #selector(openModelPage))
+            link.bezelStyle = .inline
+            link.controlSize = .small
+            stack.addArrangedSubview(link)
+
+            stack.addArrangedSubview(caption(
+                "Kept in ~/.cache/huggingface. The download is the only time "
+                + "Speak uses the network; transcription is always local."))
+        }
+    }
+
+    @objc private func openModelPage() {
+        guard !Settings.choice.repo.isEmpty,
+              let url = URL(string: "https://huggingface.co/\(Settings.choice.repo)")
+        else { return }
+        NSWorkspace.shared.open(url)
     }
 
     /// Download / load / error state, shown here because this is the screen
