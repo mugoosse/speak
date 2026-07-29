@@ -3,8 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key><string>com.mgo.speak</string>
+    <!-- Fixed install path, so this keeps working across rebuilds.
+         Login Items in System Settings does the same job; use one or the
+         other, not both. -->
     <key>ProgramArguments</key>
-    <array><string>/Users/mgo/Documents/coding/macos-apps/speak/.xcbuild/Build/Products/Release/speak</string></array>
+    <array><string>/Applications/Speak.app/Contents/MacOS/Speak</string></array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
     <key>StandardErrorPath</key><string>/tmp/speak.err</string>
