@@ -28,12 +28,14 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let history = HistoryPane(); history.title = "History"
         let permissions = PermissionsPane(); permissions.app = app
         permissions.title = "Permissions"
+        let about = AboutPane(); about.title = "About"
 
         for (vc, title, symbol) in [
             (general as NSViewController, "General", "gearshape"),
             (model as NSViewController, "Model", "waveform"),
             (history as NSViewController, "History", "clock"),
             (permissions as NSViewController, "Permissions", "lock.shield"),
+            (about as NSViewController, "About", "info.circle"),
         ] {
             let item = NSTabViewItem(viewController: vc)
             item.label = title

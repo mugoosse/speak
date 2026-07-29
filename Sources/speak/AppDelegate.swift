@@ -204,6 +204,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         prefs.image = symbol("gearshape")
         menu.addItem(prefs)
 
+        let about = NSMenuItem(title: "About Speak", action: #selector(openAbout),
+                               keyEquivalent: "")
+        about.target = self
+        about.image = symbol("info.circle")
+        menu.addItem(about)
+
         let quit = NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         quit.image = symbol("power")
@@ -227,6 +233,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openSettings() { settings.show() }
+    /// About is the last tab, so open Settings already showing it.
+    @objc private func openAbout() { settings.show(selecting: 4) }
     @objc private func openOnboarding() { startOnboarding() }
     @objc private func retryModel() { reloadModel() }
 

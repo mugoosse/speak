@@ -288,6 +288,17 @@ informative but true.
 
 Streaming partial results, custom vocabulary, cloud fallback. Deliberately.
 
+## Credits
+
+Made by [Maxime Goossens](https://maxgoespublic.com/).
+
+Speech models are [Parakeet TDT](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2)
+by NVIDIA (CC-BY-4.0), converted for Apple Silicon by
+[mlx-community](https://huggingface.co/mlx-community) and run through
+[mlx-audio-swift](https://github.com/Blaizzy/mlx-audio-swift) and
+[mlx-swift](https://github.com/ml-explore/mlx-swift). Apple Intelligence
+transcription uses the Speech framework built into macOS.
+
 ## License
 
 MIT
