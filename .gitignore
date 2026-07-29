@@ -1,0 +1,4 @@
+.build/
+.xcbuild/
+.swiftpm/
+*.log
