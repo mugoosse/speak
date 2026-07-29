@@ -1,0 +1,29 @@
+#!/bin/sh
+# Build, bundle, and install to /Applications, then restart the running copy.
+#
+# Installing to a fixed path is what makes the Login Items entry survive
+# rebuilds: the login item stores a path, so shipping new builds to the same
+# location means you register it once and never touch it again.
+#
+# Permissions survive too, because make_app.sh always signs with the same
+# identifier (com.mgo.speak) and TCC keys the Accessibility grant to that
+# identity rather than to the file's contents.
+set -e
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+DEST="/Applications/Speak.app"
+
+"$ROOT/build.sh" >/dev/null
+"$ROOT/make_app.sh" >/dev/null
+echo "built"
+
+# Quit the running copy so we are not overwriting a live binary.
+pkill -f "$DEST/Contents/MacOS/Speak" 2>/dev/null || true
+sleep 1
+
+rm -rf "$DEST"
+cp -R "$ROOT/Speak.app" "$DEST"
+echo "installed -> $DEST"
+
+open "$DEST"
+echo "restarted"

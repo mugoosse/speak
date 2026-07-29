@@ -8,14 +8,14 @@ set -e
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILT="$ROOT/.xcbuild/Build/Products/Release"
-APP="$ROOT/speak.app"
+APP="$ROOT/Speak.app"
 
 [ -x "$BUILT/speak" ] || { echo "build first: ./build.sh" >&2; exit 1; }
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp "$BUILT/speak" "$APP/Contents/MacOS/speak"
+cp "$BUILT/speak" "$APP/Contents/MacOS/Speak"
 
 # SPM resource bundles (notably mlx-swift's compiled Metal kernels) are looked
 # up next to the executable, so they have to travel with it.
@@ -30,18 +30,18 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>speak</string>
-    <key>CFBundleDisplayName</key><string>speak</string>
+    <key>CFBundleName</key><string>Speak</string>
+    <key>CFBundleDisplayName</key><string>Speak</string>
     <key>CFBundleIdentifier</key><string>com.mgo.speak</string>
     <key>CFBundleVersion</key><string>1.0</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleExecutable</key><string>speak</string>
+    <key>CFBundleExecutable</key><string>Speak</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <!-- menu bar only, no Dock icon -->
     <key>LSUIElement</key><true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>speak transcribes your dictation locally.</string>
+    <string>Speak transcribes your dictation locally.</string>
 </dict>
 PLIST
 echo '</plist>' >> "$APP/Contents/Info.plist"
