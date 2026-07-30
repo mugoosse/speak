@@ -106,13 +106,22 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             setStatus(.idle)
         }
 
+        // Having the permissions is not the same as having been set up.
+        //
+        // This used to skip onboarding whenever both grants were present, and
+        // mark the app onboarded on the strength of that. It dates from when
+        // onboarding was only about permissions. It now also chooses an engine
+        // and downloads a model, so anyone who already held the grants, which
+        // means anyone reinstalling, landed in an app that believed it was
+        // configured, had no engine, and never loaded one: the status stayed
+        // idle indefinitely with no prompt beyond a menu item they had to
+        // think to look for.
         var onboardingShown = false
-        if Permissions.allGranted {
-            installHotkey()
-            Settings.onboarded = true
-        } else if !Settings.onboarded {
+        if !Settings.onboarded {
             startOnboarding()
             onboardingShown = true
+        } else if Permissions.allGranted {
+            installHotkey()
         } else {
             setIcon("exclamationmark.triangle", "permissions needed")
         }
