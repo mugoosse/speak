@@ -239,7 +239,8 @@ final class GeneralPane: Pane {
         paste.state = Settings.autoPaste ? .on : .off
         stack.addArrangedSubview(paste)
         stack.addArrangedSubview(caption(
-            "Off by default: the text always goes to the clipboard, and "
+            "On by default. The text always goes to the clipboard as well, so "
+            + "turn this off if you would rather choose where it lands: "
             + "auto-paste types into whatever happens to be focused."))
 
         stack.addArrangedSubview(separator())

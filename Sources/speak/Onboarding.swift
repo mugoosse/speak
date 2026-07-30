@@ -660,7 +660,9 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private func buildDone(_ v: NSStackView) {
         v.addArrangedSubview(paragraph(
             "Press \(Shortcut.description) to start, talk, press it again to "
-            + "stop. Paste with ⌘V."))
+            + "stop. The transcript is pasted where you are typing, and stays "
+            + "on the clipboard. Turn off auto-paste in Settings to place it "
+            + "yourself with ⌘V."))
         v.addArrangedSubview(paragraph(
             "The menu bar icon shows what Speak is doing. Open Settings from "
             + "there to change the shortcut, switch models, or read back "

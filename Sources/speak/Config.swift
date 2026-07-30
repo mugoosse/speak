@@ -321,7 +321,7 @@ enum Settings {
     static var autoPaste: Bool {
         get {
             if ProcessInfo.processInfo.environment["SPEAK_AUTOPASTE"] == "1" { return true }
-            return UserDefaults.standard.bool(forKey: autoPasteKey)
+            return UserDefaults.standard.object(forKey: autoPasteKey) as? Bool ?? true
         }
         set { UserDefaults.standard.set(newValue, forKey: autoPasteKey) }
     }

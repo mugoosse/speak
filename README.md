@@ -52,8 +52,10 @@ trusted apps.
 
 ## Use
 
-Press **fn + ⇧ left** (the default) to start, speak, press again to stop. Paste
-with ⌘V. The menu bar icon tracks state:
+Press **fn + ⇧ left** (the default) to start, speak, press again to stop. The
+transcript is pasted into whatever is focused and stays on the clipboard, so
+⌘V works too. Turn off **Paste automatically** in Settings to only copy. The
+menu bar icon tracks state:
 
 | Icon | Meaning |
 |---|---|
@@ -273,7 +275,7 @@ Environment variables override the UI, for one-off runs:
 | Variable | Default | Meaning |
 |---|---|---|
 | `SPEAK_MODEL` | unset | force a model repo; disables the Model picker |
-| `SPEAK_AUTOPASTE` | unset | `1` presses ⌘V after copying |
+| `SPEAK_AUTOPASTE` | unset | `1` forces the ⌘V press on, even if Settings has it off |
 | `SPEAK_DEBUG` | unset | `1` traces every modifier change to stderr |
 
 ## Disk use
@@ -383,9 +385,10 @@ however the model heard them.
 **No cloud fallback, ever.** When the local model is wrong, it is wrong. That
 is the trade for audio never leaving the machine.
 
-**No text insertion at the cursor by default.** The transcript goes to the
-clipboard and you paste it. `SPEAK_AUTOPASTE=1` presses ⌘V for you, but that
-is a synthetic keystroke and some apps ignore it.
+**Text is inserted with a synthetic ⌘V, not typed at the cursor.** Some apps
+ignore a synthetic keystroke, and the paste lands wherever focus happens to be.
+The transcript is always on the clipboard as well, and **Paste automatically**
+in Settings turns the keystroke off.
 
 **Transcripts are stored in plaintext.** The history file is unencrypted JSONL
 in your home directory. Clear it in Settings if you dictate anything sensitive.
