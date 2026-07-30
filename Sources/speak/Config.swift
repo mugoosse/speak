@@ -213,6 +213,29 @@ enum Settings {
     private static let onboardedKey = "onboarded"
     private static let autoPasteKey = "autoPaste"
     private static let startAtLoginDefaultAppliedKey = "startAtLoginDefaultApplied"
+    private static let soundsKey = "sounds"
+    private static let indicatorKey = "showIndicator"
+    private static let onboardingStepKey = "onboardingStep"
+
+    /// Audible cues on start and finish. On by default: the whole point of a
+    /// push-to-talk app is that you are looking at something else, and a sound
+    /// is the only feedback that needs no glance.
+    static var sounds: Bool {
+        get { UserDefaults.standard.object(forKey: soundsKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: soundsKey) }
+    }
+
+    static var showIndicator: Bool {
+        get { UserDefaults.standard.object(forKey: indicatorKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: indicatorKey) }
+    }
+
+    /// Where onboarding got to, so quitting part way through a 2.4 GB download
+    /// does not start the whole flow again.
+    static var onboardingStep: Int {
+        get { UserDefaults.standard.integer(forKey: onboardingStepKey) }
+        set { UserDefaults.standard.set(newValue, forKey: onboardingStepKey) }
+    }
 
     /// SPEAK_MODEL still wins, so a one-off override works without disturbing
     /// the saved preference.

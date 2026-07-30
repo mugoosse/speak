@@ -24,7 +24,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private var titleLabel: NSTextField!
     private var backButton: NSButton!
     private var nextButton: NSButton!
-    private var pageDots: NSTextField!
+    private var rail: NSStackView!
 
     private struct Step {
         let title: String
@@ -32,19 +32,34 @@ final class Onboarding: NSObject, NSWindowDelegate {
         /// Takes the window so a step can consult live app state, not
         /// just global permission checks.
         let canAdvance: (Onboarding) -> Bool
+        /// A label for the primary button when the step is not yet
+        /// satisfied, naming the thing to do instead of a bare
+        /// "Continue" the user cannot press yet. nil means Continue.
+        let action: (() -> String?)?
     }
 
     private var steps: [Step] {
         [
             .init(title: "Welcome to Speak",
                   build: { $0.buildWelcome($1) },
-                  canAdvance: { _ in true }),
+                  canAdvance: { _ in true },
+                  action: nil),
             .init(title: "Microphone access",
                   build: { $0.buildMic($1) },
-                  canAdvance: { _ in Permissions.microphone }),
+                  canAdvance: { _ in Permissions.microphone },
+                  action: { Permissions.microphone ? nil : "Request microphone access" }),
             .init(title: "Accessibility access",
                   build: { $0.buildAccessibility($1) },
-                  canAdvance: { _ in Permissions.accessibility }),
+                  canAdvance: { _ in Permissions.accessibility },
+                  action: { Permissions.accessibility ? nil : "Open Privacy & Security" }),
+            // Before the model, deliberately. The model step can sit on a
+            // multi-minute download, and choosing a shortcut is something
+            // useful to do meanwhile. It also puts "confirm your chord"
+            // immediately before "now press it".
+            .init(title: "Your shortcut",
+                  build: { $0.buildShortcut($1) },
+                  canAdvance: { _ in true },
+                  action: nil),
             // Not `true`. Advancing mid-download landed people on "you're set"
             // with an engine that could not transcribe anything, and the
             // shortcut then did nothing for several minutes with no
@@ -52,7 +67,8 @@ final class Onboarding: NSObject, NSWindowDelegate {
             // working engine anyway.
             .init(title: "Speech model",
                   build: { $0.buildModel($1) },
-                  canAdvance: { $0.owner?.status.isReady ?? false }),
+                  canAdvance: { $0.owner?.status.isReady ?? false },
+                  action: nil),
             // Telling someone the shortcut works is not the same as showing
             // them. This step is the only proof that the permissions, the
             // event tap, the microphone and the model all line up, and it
@@ -60,10 +76,12 @@ final class Onboarding: NSObject, NSWindowDelegate {
             // in.
             .init(title: "Try it out",
                   build: { $0.buildTryIt($1) },
-                  canAdvance: { $0.didDictate }),
+                  canAdvance: { $0.didDictate },
+                  action: nil),
             .init(title: "You're set",
                   build: { $0.buildDone($1) },
-                  canAdvance: { _ in true }),
+                  canAdvance: { _ in true },
+                  action: nil),
         ]
     }
 
@@ -122,10 +140,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
         controls.spacing = 10
         controls.alignment = .centerY
 
-        pageDots = NSTextField(labelWithString: "")
-        pageDots.font = .systemFont(ofSize: 13)
-        pageDots.textColor = .tertiaryLabelColor
-        controls.addArrangedSubview(pageDots)
+        rail = NSStackView()
+        rail.orientation = .horizontal
+        rail.spacing = 6
+        rail.alignment = .centerY
+        controls.addArrangedSubview(rail)
 
         let gap = NSView()
         gap.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -144,6 +163,18 @@ final class Onboarding: NSObject, NSWindowDelegate {
 
         w.contentView = root
         window = w
+
+        // Resume rather than restart. The model step can sit on a multi-minute
+        // download, and losing that position because someone quit is the
+        // difference between finishing setup and giving up on it.
+        step = min(max(Settings.onboardingStep, 0), steps.count - 1)
+
+        // A regular app for the duration: this window is unrecoverable if it
+        // falls behind a System Settings pane, and .floating alone does not
+        // give it a Dock icon or an app-switcher entry to get back to. Undone
+        // when setup ends.
+        NSApp.setActivationPolicy(.regular)
+
         render()
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -174,15 +205,48 @@ final class Onboarding: NSObject, NSWindowDelegate {
     // MARK: - Steps
 
     private func buildWelcome(_ v: NSStackView) {
-        v.addArrangedSubview(paragraph(
-            "Press a keyboard shortcut, talk, press it again. What you said "
-            + "lands on your clipboard, ready to paste."))
-        v.addArrangedSubview(paragraph(
-            "Everything runs on this Mac. No account, no network, no "
-            + "subscription. Your voice never leaves the machine."))
-        v.addArrangedSubview(paragraph(
-            "Two permissions are needed first. Both are granted once and "
-            + "remembered across updates."))
+        // What you get, not what the app is. Three lines, in the order someone
+        // actually cares about them.
+        v.addArrangedSubview(bullet("mic.fill", "Talk instead of typing",
+            "Press a shortcut, say a sentence, press it again."))
+        v.addArrangedSubview(bullet("bolt.fill", "Fast enough to not think about",
+            "About 35 ms for a six-second sentence."))
+        v.addArrangedSubview(bullet("lock.fill", "Nothing leaves this Mac",
+            "No account, no subscription, no telemetry."))
+        v.addArrangedSubview(hint(
+            "Setup takes a minute: two permissions, a shortcut, and one "
+            + "speech model. You can stop and come back."))
+    }
+
+    /// An icon, a claim, and the evidence for it.
+    private func bullet(_ symbol: String, _ title: String, _ detail: String) -> NSView {
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.alignment = .top
+        row.spacing = 12
+
+        let icon = NSImageView(image: NSImage(
+            systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage())
+        icon.contentTintColor = .controlAccentColor
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        row.addArrangedSubview(icon)
+
+        let text = NSStackView()
+        text.orientation = .vertical
+        text.alignment = .leading
+        text.spacing = 2
+        let t = NSTextField(labelWithString: title)
+        t.font = .systemFont(ofSize: 13, weight: .semibold)
+        text.addArrangedSubview(t)
+        let d = NSTextField(labelWithString: detail)
+        d.font = .systemFont(ofSize: 12)
+        d.textColor = .secondaryLabelColor
+        text.addArrangedSubview(d)
+        row.addArrangedSubview(text)
+
+        row.setAccessibilityLabel("\(title). \(detail)")
+        return row
     }
 
     private func buildMic(_ v: NSStackView) {
@@ -215,6 +279,28 @@ final class Onboarding: NSObject, NSWindowDelegate {
                 + "with the minus button, then add it again. macOS keeps a "
                 + "stale entry after an app is replaced."))
         }
+    }
+
+    private func buildShortcut(_ v: NSStackView) {
+        v.addArrangedSubview(paragraph(
+            "This chord starts and stops dictation, from any app."))
+
+        let chip = NSTextField(labelWithString: Shortcut.description)
+        chip.font = .monospacedSystemFont(ofSize: 17, weight: .semibold)
+        chip.setAccessibilityLabel("Current shortcut: \(Shortcut.description)")
+        v.addArrangedSubview(chip)
+
+        v.addArrangedSubview(hint(
+            "Left and right modifiers count separately, so \u{2303} left and "
+            + "\u{2303} right are different shortcuts. A single modifier is "
+            + "allowed but fires every time you press that key."))
+
+        let change = NSButton(title: "Choose a different shortcut\u{2026}",
+                              target: self, action: #selector(openShortcutSettings))
+        v.addArrangedSubview(change)
+
+        v.addArrangedSubview(hint(
+            "You can change it later in Settings. Nothing is locked in here."))
     }
 
     private func buildModel(_ v: NSStackView) {
@@ -261,9 +347,17 @@ final class Onboarding: NSObject, NSWindowDelegate {
             liveProgressBar = bar
             v.addArrangedSubview(bar)
 
-            v.addArrangedSubview(hint(
-                "You can continue and close this window; the download keeps "
-                + "going in the background."))
+            // The gate on this step is deliberate, but staring at a bar for
+            // ten minutes is not. Apple Intelligence needs no download, so it
+            // is a real way out rather than a consolation prize, and saying so
+            // here is the difference between a wait and a dead end.
+            if ModelChoice.all.contains(where: { $0.kind == .apple }) {
+                v.addArrangedSubview(hint(
+                    "Do not want to wait? Pick Apple Intelligence above: it "
+                    + "needs no download and works immediately. Parakeet keeps "
+                    + "downloading, and you can switch to it in Settings once "
+                    + "it has finished."))
+            }
         case .ready:
             v.addArrangedSubview(status(true, granted: "Ready to dictate.", pending: ""))
         case .failed(let why):
@@ -418,11 +512,43 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private func updateControls() {
         guard step < steps.count else { return }
         let s = steps[step]
+        let ready = s.canAdvance(self)
+
         backButton.isHidden = step == 0
-        nextButton.title = step == steps.count - 1 ? "Done" : "Continue"
-        nextButton.isEnabled = s.canAdvance(self)
-        pageDots.stringValue = (0..<steps.count)
-            .map { $0 == step ? "●" : "○" }.joined(separator: " ")
+        // Name the thing to do rather than offering a Continue that cannot be
+        // pressed. "Grant microphone access" answers "what am I waiting for?"
+        // where a greyed-out Continue only poses it.
+        let pending = ready ? nil : s.action?()
+        nextButton.title = pending
+            ?? (step == steps.count - 1 ? "Done" : "Continue")
+        // A step with its own action button stays clickable so it can trigger
+        // that action; otherwise the button is the gate.
+        nextButton.isEnabled = ready || pending != nil
+        buildRail()
+
+        window?.setAccessibilityLabel(
+            "Speak setup, step \(step + 1) of \(steps.count): \(s.title)")
+        nextButton.setAccessibilityLabel(nextButton.title)
+    }
+
+    /// Filled circles behind, a ring on the current step, hollow ahead. Same
+    /// information the text dots carried, in a form that reads as progress.
+    private func buildRail() {
+        rail.arrangedSubviews.forEach {
+            rail.removeArrangedSubview($0); $0.removeFromSuperview()
+        }
+        for i in 0..<steps.count {
+            let name = i < step ? "checkmark.circle.fill"
+                     : (i == step ? "circle.inset.filled" : "circle")
+            let dot = NSImageView(image: NSImage(
+                systemSymbolName: name, accessibilityDescription: nil) ?? NSImage())
+            dot.contentTintColor = i <= step ? .controlAccentColor : .tertiaryLabelColor
+            dot.translatesAutoresizingMaskIntoConstraints = false
+            dot.widthAnchor.constraint(equalToConstant: 13).isActive = true
+            dot.heightAnchor.constraint(equalToConstant: 13).isActive = true
+            rail.addArrangedSubview(dot)
+        }
+        rail.setAccessibilityLabel("Step \(step + 1) of \(steps.count)")
     }
 
     /// What the body's *structure* depends on. The timer rebuilds when this
@@ -455,19 +581,34 @@ final class Onboarding: NSObject, NSWindowDelegate {
     }
 
     @objc private func next() {
+        // When the step is not satisfied the button is its action, not
+        // navigation: pressing "Request microphone access" must request it.
+        let s = steps[step]
+        if !s.canAdvance(self), s.action?() != nil {
+            switch step {
+            case 1: requestMic()
+            case 2: openAccessibility()
+            default: break
+            }
+            return
+        }
+
         if step == steps.count - 1 {
             Settings.onboarded = true
+            Settings.onboardingStep = 0      // finished, so do not resume here
             onFinish?()
             window?.close()
             return
         }
         step += 1
+        Settings.onboardingStep = step
         render()
     }
 
     @objc private func back() {
         guard step > 0 else { return }
         step -= 1
+        Settings.onboardingStep = step
         render()
     }
 
@@ -483,6 +624,10 @@ final class Onboarding: NSObject, NSWindowDelegate {
 
     @objc private func openAccessibility() {
         Permissions.promptAccessibility()
+        // The grant happens in System Settings, in another app, possibly a
+        // minute from now. Watch for it so the tap arms itself instead of
+        // waiting for a relaunch.
+        owner?.watchForAccessibility()
         // Settings takes focus; come back to the front once it has opened so
         // the remaining steps stay visible.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
@@ -502,6 +647,10 @@ final class Onboarding: NSObject, NSWindowDelegate {
         refresh?.invalidate()
         refresh = nil
         window = nil
+        owner?.onTranscript = nil
+        // Back to a menu bar app. Leaving it .regular would give Speak a
+        // permanent Dock icon, which is the one thing it is meant not to have.
+        NSApp.setActivationPolicy(.accessory)
         step = 0
         // Reaching the end is not required; permissions can be finished later
         // from Settings.

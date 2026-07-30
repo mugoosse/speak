@@ -10,6 +10,16 @@ final class Recorder {
     private let lock = NSLock()
     private(set) var isRecording = false
 
+    /// Fired once per recording, when the first converted samples arrive.
+    ///
+    /// The start cue hangs off this rather than off `start()`, so it means
+    /// "the microphone is live" instead of "a key was pressed". Those are not
+    /// the same moment: the engine takes a beat to spin up, and if another app
+    /// holds the device it may never arrive at all, in which case staying
+    /// silent is the honest outcome.
+    var onFirstBuffer: (@Sendable () -> Void)?
+    private var sawFirstBuffer = false
+
     private let target = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: SAMPLE_RATE,
@@ -20,6 +30,7 @@ final class Recorder {
     func start() throws {
         guard !isRecording else { return }
         lock.lock(); samples.removeAll(); lock.unlock()
+        sawFirstBuffer = false
 
         let input = engine.inputNode
         try selectDevice(on: input)
@@ -49,7 +60,12 @@ final class Recorder {
                   let ch = out.floatChannelData?[0] else { return }
 
             let chunk = Array(UnsafeBufferPointer(start: ch, count: Int(out.frameLength)))
-            self.lock.lock(); self.samples.append(contentsOf: chunk); self.lock.unlock()
+            self.lock.lock()
+            self.samples.append(contentsOf: chunk)
+            let first = !self.sawFirstBuffer
+            self.sawFirstBuffer = true
+            self.lock.unlock()
+            if first { self.onFirstBuffer?() }
         }
 
         engine.prepare()

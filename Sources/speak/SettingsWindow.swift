@@ -28,7 +28,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let history = HistoryPane(); history.title = "History"
         let permissions = PermissionsPane(); permissions.app = app
         permissions.title = "Permissions"
-        let about = AboutPane(); about.title = "About"
+        let about = AboutPane(); about.app = app; about.title = "About"
 
         for (vc, title, symbol) in [
             (general as NSViewController, "General", "gearshape"),
@@ -241,6 +241,23 @@ final class GeneralPane: Pane {
             + "auto-paste types into whatever happens to be focused."))
 
         stack.addArrangedSubview(separator())
+        stack.addArrangedSubview(heading("Feedback"))
+
+        let sounds = NSButton(checkboxWithTitle: "Play a sound when recording starts and stops",
+                              target: self, action: #selector(toggleSounds))
+        sounds.state = Settings.sounds ? .on : .off
+        stack.addArrangedSubview(sounds)
+        stack.addArrangedSubview(caption(
+            "The start sound plays when the microphone actually goes live, "
+            + "not when the key is pressed, so it never claims to be "
+            + "listening before it is."))
+
+        let hud = NSButton(checkboxWithTitle: "Show an on-screen indicator while recording",
+                           target: self, action: #selector(toggleIndicator))
+        hud.state = Settings.showIndicator ? .on : .off
+        stack.addArrangedSubview(hud)
+
+        stack.addArrangedSubview(separator())
         stack.addArrangedSubview(heading("Microphone"))
 
         micPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -339,6 +356,14 @@ final class GeneralPane: Pane {
         field.stringValue = Shortcut.description
         updateWarning()
         app?.refreshMenu()
+    }
+
+    @objc private func toggleSounds(_ sender: NSButton) {
+        Settings.sounds = sender.state == .on
+    }
+
+    @objc private func toggleIndicator(_ sender: NSButton) {
+        Settings.showIndicator = sender.state == .on
     }
 
     @objc private func togglePaste(_ sender: NSButton) {
@@ -788,7 +813,12 @@ final class PermissionsPane: Pane {
         }
     }
 
-    @objc private func fixAccessibility() { Permissions.promptAccessibility() }
+    @objc private func fixAccessibility() {
+        Permissions.promptAccessibility()
+        // Same reason as in onboarding: the grant lands in another app, later,
+        // and without this the tap stays dead until Speak is relaunched.
+        app?.watchForAccessibility()
+    }
 
     @objc private func rerunOnboarding() { app?.startOnboarding() }
 

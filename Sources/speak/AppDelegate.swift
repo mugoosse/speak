@@ -11,6 +11,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var comboLatched = false
     private var ready = false
     private var downloadWatch: Timer?
+    private var accessibilityWatch: Timer?
     let updater = Updater()
     private let indicator = RecordingIndicator()
 
@@ -25,6 +26,35 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func installHotkeyIfNeeded() {
         guard eventTap == nil, Permissions.accessibility else { return }
         installHotkey()
+        setIcon(ready ? "mic" : "mic.slash", ready ? "ready" : "loading model…")
+        refreshMenu()
+    }
+
+    /// Watch for Accessibility being granted and arm the tap the moment it is.
+    ///
+    /// macOS sends no notification when a TCC grant changes, and the grant is
+    /// usually made in System Settings, in another app, minutes after we asked.
+    /// Without polling, Speak sits there with a dead tap and the shortcut does
+    /// nothing until the user thinks to relaunch, which reads as the app being
+    /// broken. Stops as soon as it succeeds, or after a minute, because a
+    /// permanent timer for a one-time event is waste.
+    func watchForAccessibility(seconds: TimeInterval = 60) {
+        guard eventTap == nil else { return }
+        accessibilityWatch?.invalidate()
+        let deadline = Date().addingTimeInterval(seconds)
+        accessibilityWatch = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+            [weak self] t in
+            Task { @MainActor in
+                guard let self else { t.invalidate(); return }
+                if self.eventTap != nil || Date() > deadline {
+                    t.invalidate(); self.accessibilityWatch = nil; return
+                }
+                if Permissions.accessibility {
+                    self.installHotkeyIfNeeded()
+                    t.invalidate(); self.accessibilityWatch = nil
+                }
+            }
+        }
     }
 
     /// Latest model state, and a hook so Settings and onboarding can mirror it.
@@ -391,6 +421,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return true          // never let a chord being recorded reach an app
         }
 
+        // Escape abandons a recording. Only while recording, and the keystroke
+        // is swallowed then so it does not also dismiss whatever is in front.
+        // At any other time Escape is none of our business.
+        if code == kVK_Escape, recorder.isRecording {
+            cancelDictation()
+            return true
+        }
+
         guard Shortcut.usesCharacterKey,
               Shortcut.keyCode == code,
               Shortcut.modifiersMatch(flags) else { return false }
@@ -419,8 +457,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if Settings.autoPaste { paste() }
                     History.append(.init(date: Date(), duration: seconds, text: text))
                     setIcon("mic", "copied \(text.split(separator: " ").count) words")
+                    Cue.done()
                 } else {
                     setIcon("mic", "nothing transcribed")
+                    Cue.failed()
                 }
                 // Onboarding's try-it-out step listens here, so the user sees
                 // their own words rather than being told it worked.
@@ -428,15 +468,33 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         } else {
             guard ready else { NSSound.beep(); return }
+            // Tied to the first audio buffer, not to this line: it has to mean
+            // "the microphone is live", and the engine takes a moment. If
+            // another app is holding the device it never fires, which is the
+            // truthful outcome.
+            recorder.onFirstBuffer = { Cue.start() }
             do {
                 try recorder.start()
                 setIcon("record.circle", "recording…")
-                indicator.show(.recording)
+                if Settings.showIndicator { indicator.show(.recording) }
             } catch {
                 setIcon("exclamationmark.triangle", "mic error: \(error)")
                 indicator.hide()
             }
         }
+    }
+
+    /// Abandon a recording without producing a transcript.
+    ///
+    /// Without this, a shortcut pressed by accident has no way out that does
+    /// not overwrite the clipboard, and the clipboard is somebody's working
+    /// state.
+    func cancelDictation() {
+        guard recorder.isRecording else { return }
+        _ = recorder.stop()
+        indicator.hide()
+        Cue.cancel()
+        setIcon("mic", "cancelled")
     }
 
     private func paste() {

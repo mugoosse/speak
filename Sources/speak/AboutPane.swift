@@ -4,11 +4,22 @@ import AppKit
 final class AboutPane: Pane {
     private static let websiteURL = "https://maxgoespublic.com/"
     private static let sourceURL = "https://github.com/mugoosse/speak"
+    weak var app: App?
 
     override func build() {
         stack.addArrangedSubview(header())
         stack.addArrangedSubview(separator())
 
+        stack.addArrangedSubview(heading("Setup"))
+        let again = NSButton(title: "Run setup again…",
+                             target: self, action: #selector(runSetupAgain))
+        stack.addArrangedSubview(again)
+        stack.addArrangedSubview(caption(
+            "Walks through permissions, the shortcut and a test dictation. "
+            + "It changes nothing you have already chosen, and it is the "
+            + "quickest way to find out which part has stopped working."))
+
+        stack.addArrangedSubview(separator())
         stack.addArrangedSubview(heading("Made by"))
         let author = NSTextField(labelWithString: "Maxime Goossens")
         author.font = .systemFont(ofSize: 13)
@@ -105,6 +116,14 @@ final class AboutPane: Pane {
 
     @objc private func openWebsite() {
         if let url = URL(string: Self.websiteURL) { NSWorkspace.shared.open(url) }
+    }
+
+    @objc private func runSetupAgain() {
+        // From the top, not from wherever the resume position happens to be:
+        // reaching for this means something is wrong, and the earlier steps
+        // are where the answer usually is.
+        Settings.onboardingStep = 0
+        app?.startOnboarding()
     }
 
     @objc private func openSource() {
