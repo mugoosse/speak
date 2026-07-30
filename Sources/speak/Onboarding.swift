@@ -52,14 +52,6 @@ final class Onboarding: NSObject, NSWindowDelegate {
                   build: { $0.buildAccessibility($1) },
                   canAdvance: { _ in Permissions.accessibility },
                   action: { Permissions.accessibility ? nil : "Open Privacy & Security" }),
-            // Before the model, deliberately. The model step can sit on a
-            // multi-minute download, and choosing a shortcut is something
-            // useful to do meanwhile. It also puts "confirm your chord"
-            // immediately before "now press it".
-            .init(title: "Your shortcut",
-                  build: { $0.buildShortcut($1) },
-                  canAdvance: { _ in true },
-                  action: nil),
             // Not `true`. Advancing mid-download landed people on "you're set"
             // with an engine that could not transcribe anything, and the
             // shortcut then did nothing for several minutes with no
@@ -95,6 +87,9 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private weak var tryItResult: NSTextField?
     private var micHelpOpen = false
     private var axHelpOpen = false
+    private var tryHelpOpen = false
+    private weak var chordChip: NSTextField?
+    private weak var changeButton: NSButton?
 
     /// Set by the app so this step can show live download progress.
     weak var owner: App?
@@ -416,28 +411,6 @@ final class Onboarding: NSObject, NSWindowDelegate {
     @objc private func toggleMicHelp() { micHelpOpen.toggle(); render() }
     @objc private func toggleAxHelp() { axHelpOpen.toggle(); render() }
 
-    private func buildShortcut(_ v: NSStackView) {
-        v.addArrangedSubview(paragraph(
-            "This chord starts and stops dictation, from any app."))
-
-        let chip = NSTextField(labelWithString: Shortcut.description)
-        chip.font = .monospacedSystemFont(ofSize: 17, weight: .semibold)
-        chip.setAccessibilityLabel("Current shortcut: \(Shortcut.description)")
-        v.addArrangedSubview(chip)
-
-        v.addArrangedSubview(hint(
-            "Left and right modifiers count separately, so \u{2303} left and "
-            + "\u{2303} right are different shortcuts. A single modifier is "
-            + "allowed but fires every time you press that key."))
-
-        let change = NSButton(title: "Choose a different shortcut\u{2026}",
-                              target: self, action: #selector(openShortcutSettings))
-        v.addArrangedSubview(change)
-
-        v.addArrangedSubview(hint(
-            "You can change it later in Settings. Nothing is locked in here."))
-    }
-
     private func buildModel(_ v: NSStackView) {
         // Belt and braces. This step gates on the engine being ready, so
         // arriving here with nothing loading is a dead end by construction,
@@ -533,25 +506,33 @@ final class Onboarding: NSObject, NSWindowDelegate {
         owner?.installHotkeyIfNeeded()
 
         v.addArrangedSubview(paragraph(
-            "Press \(Shortcut.description), say a sentence, then press it "
-            + "again. What you said should appear below."))
+            "Press the shortcut, say a sentence, then press it again. "
+            + "What you said should appear below."))
 
+        // The chord and the means to change it, next to the thing that tests
+        // it. A separate step for choosing a shortcut showed this same chip and
+        // this same button, then asked you to press it on the following screen:
+        // two steps to do what reads as one action.
         let chip = NSTextField(labelWithString: Shortcut.description)
-        chip.font = .monospacedSystemFont(ofSize: 15, weight: .semibold)
-        v.addArrangedSubview(chip)
+        chip.font = .monospacedSystemFont(ofSize: 17, weight: .semibold)
+        chip.setAccessibilityLabel("Current shortcut: \(Shortcut.description)")
+        chordChip = chip
 
-        let change = NSButton(title: "Use a different shortcut…",
-                              target: self, action: #selector(openShortcutSettings))
-        change.bezelStyle = .inline
-        change.controlSize = .small
-        v.addArrangedSubview(change)
+        let change = NSButton(title: "Change…", target: self, action: #selector(record))
+        changeButton = change
+
+        let chordRow = NSStackView(views: [chip, change])
+        chordRow.orientation = .horizontal
+        chordRow.alignment = .centerY
+        chordRow.spacing = 16
+        v.addArrangedSubview(chordRow)
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.heightAnchor.constraint(equalToConstant: 84).isActive = true
-        scroll.widthAnchor.constraint(equalToConstant: 470).isActive = true
+        scroll.heightAnchor.constraint(equalToConstant: 92).isActive = true
+        scroll.widthAnchor.constraint(equalToConstant: 520).isActive = true
 
         let text = NSTextView()
         text.isEditable = true
@@ -569,10 +550,16 @@ final class Onboarding: NSObject, NSWindowDelegate {
         v.addArrangedSubview(resultRow)
 
         if !didDictate {
-            v.addArrangedSubview(hint(
-                "Nothing happening? The chord has to be held together and "
-                + "released. If it still does nothing, Accessibility is the "
-                + "usual cause: remove Speak from that list and add it again."))
+            v.addArrangedSubview(help(expanded: tryHelpOpen,
+                                      toggle: #selector(toggleTryHelp)) { inner in
+                inner.addArrangedSubview(self.hint(
+                    "The chord has to be held together and released. Left and "
+                    + "right modifiers count separately, so \u{2303} left and "
+                    + "\u{2303} right are different shortcuts."))
+                inner.addArrangedSubview(self.hint(
+                    "If it still does nothing, Accessibility is the usual "
+                    + "cause: remove Speak from that list and add it again."))
+            })
         }
 
         // Route finished transcripts here for as long as this step is shown.
@@ -593,6 +580,61 @@ final class Onboarding: NSObject, NSWindowDelegate {
         }
     }
 
+    @objc private func toggleTryHelp() { tryHelpOpen.toggle(); render() }
+
+    /// Captures the next chord in place, rather than sending the user to
+    /// Settings in the middle of setup. Hold a combination; it commits on
+    /// release, which is what lets a chord be built one key at a time.
+    @objc private func record() {
+        guard let owner else { return }
+        var widest: UInt64 = 0
+        chordChip?.stringValue = "press and hold…"
+        changeButton?.isEnabled = false
+
+        var pending: DispatchWorkItem?
+
+        let commit: (UInt64, Int?) -> Void = { [weak self] mask, code in
+            guard let self else { return }
+            owner.shortcutRecorder = nil
+            self.changeButton?.isEnabled = true
+            if Shortcut.isUsable(mask, code) {
+                Shortcut.set(mask: mask, keyCode: code)
+            } else {
+                NSSound.beep()
+            }
+            self.chordChip?.stringValue = Shortcut.description
+            owner.refreshMenu()
+        }
+
+        owner.shortcutRecorder = { [weak self] flags, keyCode in
+            guard let self else { return }
+            let held = flags.rawValue & Modifier.tracked
+
+            if let keyCode {                // a character key ends it at once
+                pending?.cancel()
+                commit(held, keyCode)
+                return
+            }
+            if held != 0 {
+                pending?.cancel()
+                pending = nil
+                if held.nonzeroBitCount > widest.nonzeroBitCount,
+                   held.nonzeroBitCount <= Shortcut.maxKeys {
+                    widest = held
+                }
+                self.chordChip?.stringValue = Modifier.describe(held)
+                return
+            }
+            // Everything released. Wait a moment before committing: three keys
+            // rarely go down in one event, and a brief all-clear between
+            // presses would otherwise cut the chord short.
+            pending?.cancel()
+            let work = DispatchWorkItem { commit(widest, nil) }
+            pending = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+        }
+    }
+
     /// Quit and start again, keeping the saved onboarding position so the
     /// user lands back on this step rather than at the beginning.
     @objc private func relaunchApp() {
@@ -607,9 +649,6 @@ final class Onboarding: NSObject, NSWindowDelegate {
         NSApp.terminate(nil)
     }
 
-    @objc private func openShortcutSettings() {
-        owner?.openSettingsAtShortcut()
-    }
 
     private func buildDone(_ v: NSStackView) {
         v.addArrangedSubview(paragraph(
@@ -835,6 +874,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         refresh = nil
         window = nil
         owner?.onTranscript = nil
+        owner?.shortcutRecorder = nil    // never leave the tap recording
         // Back to a menu bar app. Leaving it .regular would give Speak a
         // permanent Dock icon, which is the one thing it is meant not to have.
         NSApp.setActivationPolicy(.accessory)
