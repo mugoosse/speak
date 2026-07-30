@@ -335,6 +335,18 @@ final class Onboarding: NSObject, NSWindowDelegate {
                                     granted: "Accessibility access granted.",
                                     pending: "Switch Speak on in the list, then come back."))
         if !Permissions.accessibility {
+            // The guaranteed remedy, offered rather than described.
+            //
+            // A granted Accessibility toggle does not always reach a process
+            // that is already running: the trust check can answer from a
+            // cached result, and a TCC entry created against a bundle that has
+            // since been replaced no longer matches the app asking. Both look
+            // identical from here, the switch is on and Speak still cannot see
+            // it, and both are cured by starting the process again.
+            let relaunch = NSButton(title: "Switched it on but nothing changed? Relaunch Speak",
+                                    target: self, action: #selector(relaunchApp))
+            relaunch.bezelStyle = .rounded
+            v.addArrangedSubview(relaunch)
             v.addArrangedSubview(hint(
                 "Already listed but still not working? Select Speak, remove it "
                 + "with the minus button, then add it again. macOS keeps a "
@@ -514,6 +526,20 @@ final class Onboarding: NSObject, NSWindowDelegate {
             self.tryItResult?.textColor = .systemGreen
             self.updateControls()
         }
+    }
+
+    /// Quit and start again, keeping the saved onboarding position so the
+    /// user lands back on this step rather than at the beginning.
+    @objc private func relaunchApp() {
+        Settings.onboardingStep = step
+        let url = Bundle.main.bundleURL
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // A short delay so this process is gone before the new one starts;
+        // launching a second copy of a running app just activates the first.
+        task.arguments = ["-c", "sleep 1; open \"\(url.path)\""]
+        try? task.run()
+        NSApp.terminate(nil)
     }
 
     @objc private func openShortcutSettings() {
