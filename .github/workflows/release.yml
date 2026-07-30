@@ -54,13 +54,26 @@ jobs:
         with:
           fetch-depth: 0        # make_app.sh derives the build number from commit count
 
+      # Pick the newest Xcode the image has, rather than pinning a version that
+      # ages out of the runner image. It has to be Xcode 26 or later:
+      # AppleEngine.swift uses SpeechAnalyzer, which does not exist in earlier
+      # SDKs, and only Xcode 26 understands -downloadComponent.
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "using $LATEST"
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
 
-      # SwiftPM alone never compiles MLX's Metal kernels, and Xcode 16+ ships
-      # the Metal compiler as a separate component.
+      # SwiftPM alone never compiles MLX's Metal kernels, and Xcode 26 ships
+      # the Metal compiler as a separate ~688 MB component.
       - name: Install Metal toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
+        run: |
+          if xcrun metal --version >/dev/null 2>&1; then
+            echo "Metal compiler already present"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
 
       - name: Cache SwiftPM dependencies
         uses: actions/cache@v4
