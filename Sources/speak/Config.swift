@@ -208,13 +208,14 @@ enum ModelStatus {
                 return "downloading model… \(f.string(fromByteCount: total)), "
                      + "\(Self.duration(elapsed)) so far"
             }
-            // "41 KB in 49s" read as a prediction rather than a measurement.
-            // Amount of total, then time spent, in that order.
+            // No elapsed time. It was worth showing when there was nothing
+            // else to show, as the only evidence anything was still happening.
+            // A moving percentage says that better, and a stopwatch next to a
+            // progress bar just invites the reader to do arithmetic.
             let pct = Int((fraction * 100).rounded())
             return "downloading model… \(pct)% · "
                  + "\(f.string(fromByteCount: received)) of "
-                 + "\(f.string(fromByteCount: total)) · "
-                 + "\(Self.duration(elapsed)) elapsed"
+                 + "\(f.string(fromByteCount: total))"
         case .idle:     return "waiting to set up"
         case .loading:  return "loading model…"
         case .ready:    return "ready"
