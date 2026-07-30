@@ -135,6 +135,8 @@ final class GeneralPane: Pane {
     private var warning: NSTextField!
     private var micPopup: NSPopUpButton!
     private var loginError: String?
+    private var startSoundPopup: NSPopUpButton!
+    private var doneSoundPopup: NSPopUpButton!
 
     /// Devices come and go, so rebuild the list whenever the pane is shown.
     override func viewWillAppear() {
@@ -247,10 +249,21 @@ final class GeneralPane: Pane {
                               target: self, action: #selector(toggleSounds))
         sounds.state = Settings.sounds ? .on : .off
         stack.addArrangedSubview(sounds)
+
+        startSoundPopup = soundPopup(selected: Settings.startSound,
+                                     action: #selector(pickStartSound))
+        doneSoundPopup = soundPopup(selected: Settings.doneSound,
+                                    action: #selector(pickDoneSound))
+        startSoundPopup.isEnabled = Settings.sounds
+        doneSoundPopup.isEnabled = Settings.sounds
+        stack.addArrangedSubview(row([
+            NSTextField(labelWithString: "Starts:"), startSoundPopup,
+            NSTextField(labelWithString: "Finishes:"), doneSoundPopup,
+        ]))
         stack.addArrangedSubview(caption(
-            "The start sound plays when the microphone actually goes live, "
-            + "not when the key is pressed, so it never claims to be "
-            + "listening before it is."))
+            "Choosing one plays it. The start sound fires when the microphone "
+            + "actually goes live rather than when the key is pressed, so it "
+            + "never claims to be listening before it is."))
 
         let hud = NSButton(checkboxWithTitle: "Show an on-screen indicator while recording",
                            target: self, action: #selector(toggleIndicator))
@@ -358,8 +371,36 @@ final class GeneralPane: Pane {
         app?.refreshMenu()
     }
 
+    /// A menu of the system sounds, plus None for silencing one cue without
+    /// losing the other.
+    private func soundPopup(selected: String, action: Selector) -> NSPopUpButton {
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.target = self
+        popup.action = action
+        popup.addItem(withTitle: Cue.none)
+        popup.menu?.addItem(.separator())
+        for name in Cue.available { popup.addItem(withTitle: name) }
+        popup.selectItem(withTitle: selected)
+        if popup.selectedItem == nil { popup.selectItem(withTitle: Cue.none) }
+        return popup
+    }
+
     @objc private func toggleSounds(_ sender: NSButton) {
         Settings.sounds = sender.state == .on
+        startSoundPopup?.isEnabled = Settings.sounds
+        doneSoundPopup?.isEnabled = Settings.sounds
+    }
+
+    @objc private func pickStartSound(_ sender: NSPopUpButton) {
+        let name = sender.titleOfSelectedItem ?? Cue.defaultStart
+        Settings.startSound = name
+        Cue.preview(name)      // hearing it is the only way to judge it
+    }
+
+    @objc private func pickDoneSound(_ sender: NSPopUpButton) {
+        let name = sender.titleOfSelectedItem ?? Cue.defaultDone
+        Settings.doneSound = name
+        Cue.preview(name)
     }
 
     @objc private func toggleIndicator(_ sender: NSButton) {

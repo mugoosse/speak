@@ -216,6 +216,8 @@ enum Settings {
     private static let soundsKey = "sounds"
     private static let indicatorKey = "showIndicator"
     private static let onboardingStepKey = "onboardingStep"
+    private static let startSoundKey = "startSound"
+    private static let doneSoundKey = "doneSound"
 
     /// Audible cues on start and finish. On by default: the whole point of a
     /// push-to-talk app is that you are looking at something else, and a sound
@@ -228,6 +230,19 @@ enum Settings {
     static var showIndicator: Bool {
         get { UserDefaults.standard.object(forKey: indicatorKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: indicatorKey) }
+    }
+
+    /// Which system sound each cue uses. Taste in notification sounds is
+    /// personal and these fire dozens of times a day, so they are a setting
+    /// rather than a decision made on the user's behalf.
+    static var startSound: String {
+        get { UserDefaults.standard.string(forKey: startSoundKey) ?? Cue.defaultStart }
+        set { UserDefaults.standard.set(newValue, forKey: startSoundKey) }
+    }
+
+    static var doneSound: String {
+        get { UserDefaults.standard.string(forKey: doneSoundKey) ?? Cue.defaultDone }
+        set { UserDefaults.standard.set(newValue, forKey: doneSoundKey) }
     }
 
     /// Where onboarding got to, so quitting part way through a 2.4 GB download

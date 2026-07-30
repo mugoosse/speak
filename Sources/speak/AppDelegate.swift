@@ -103,6 +103,26 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshMenu()
     }
 
+    /// Opening Speak again, from Spotlight or the Finder, drops the menu down.
+    ///
+    /// An `LSUIElement` app has no window and no Dock icon, so launching an
+    /// already-running copy did nothing observable at all: the launch
+    /// succeeded, macOS activated us, and the user saw an empty screen and
+    /// concluded the app was broken. Spotlight is how most people will try to
+    /// "open" a menu bar app, so it has to lead somewhere.
+    func applicationShouldHandleReopen(_ app: NSApplication,
+                                       hasVisibleWindows: Bool) -> Bool {
+        showMenu()
+        return true
+    }
+
+    func showMenu() {
+        refreshMenu()
+        // performClick is the supported way to drop a status item's menu
+        // programmatically; there is no public "open this menu" call.
+        statusItem?.button?.performClick(nil)
+    }
+
     func startOnboarding() {
         onboarding.show { [weak self] in
             guard let self else { return }

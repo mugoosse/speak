@@ -12,3 +12,6 @@ speak.app/
 .DS_Store
 dist/
 .notarization
+
+# local test helpers, not part of the app
+scratch-*
