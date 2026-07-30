@@ -176,19 +176,18 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         loadTask = Task {
             do {
-                try await transcriber.load(choice) { [weak self] fraction, received in
-                    guard let self, case .downloading = self.status else { return }
-                    self.setStatus(.downloading(
-                        elapsed: Date().timeIntervalSince(started),
-                        total: choice.approxBytes,
-                        received: received,
-                        fraction: fraction))
-                }
+                // No progress closure: see startDownloadWatch. The handler
+                // this library offers counts completed files, which for a
+                // single huge file means one update, at the end.
+                try await transcriber.load(choice)
                 stopDownloadWatch()
                 ready = true
                 setStatus(.ready)
             } catch {
-                stopDownloadWatch()
+                // Checked before stopping the watch: by the time a cancelled
+                // task resumes, the engine it was replaced by may already have
+                // started its own, and tearing that down would freeze the new
+                // one's progress at whatever it last showed.
                 // A cancelled load is a deliberate switch to another engine,
                 // not a failure. Reporting it as one would put a red error on
                 // the step at the exact moment the user did the right thing.
@@ -196,31 +195,45 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     log("model load cancelled")
                     return
                 }
+                stopDownloadWatch()
                 setStatus(.failed(ModelStatus.describe(error)))
                 log("model load failed: \(error)")
             }
         }
     }
 
-    /// Keeps the elapsed time honest between progress callbacks, and notices
-    /// when the files have landed and the remaining wait is weight loading.
+    /// Measures the bytes actually on disk, once a second.
+    ///
+    /// The library's own progress handler counts *completed files*, so with one
+    /// dominant 2.3 GB weights file it reports the few KB of JSON and then
+    /// nothing at all until the whole thing lands. That produced a bar frozen
+    /// at 0% for the entire download, which is precisely the failure the
+    /// elapsed-time display was invented to avoid.
+    ///
+    /// The Hugging Face client streams into `blobs/<etag>`, and that file grows
+    /// as it arrives, so the download directory is a truthful second-by-second
+    /// measure even though mlx-audio's own copy is not.
     private func startDownloadWatch(_ choice: ModelChoice, started: Date) {
         downloadWatch?.invalidate()
         downloadWatch = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
-                guard let self,
-                      case .downloading(_, _, let received, let fraction) = self.status
-                else { return }
+                guard let self, case .downloading = self.status else { return }
                 if choice.isDownloaded {
                     self.setStatus(.loading)
-                } else {
-                    self.setStatus(.downloading(
-                        elapsed: Date().timeIntervalSince(started),
-                        total: choice.approxBytes,
-                        received: received,
-                        fraction: fraction))
+                    return
                 }
+                let bytes = choice.bytesOnDisk
+                // Cap at 1: approxBytes is measured rather than authoritative,
+                // and a bar reading 103% is worse than one that pauses at full.
+                let fraction = choice.approxBytes > 0
+                    ? min(1.0, Double(bytes) / Double(choice.approxBytes))
+                    : nil
+                self.setStatus(.downloading(
+                    elapsed: Date().timeIntervalSince(started),
+                    total: choice.approxBytes,
+                    received: bytes,
+                    fraction: fraction))
             }
         }
     }

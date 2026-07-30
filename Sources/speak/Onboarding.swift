@@ -432,9 +432,9 @@ final class Onboarding: NSObject, NSWindowDelegate {
             if ModelChoice.all.contains(where: { $0.kind == .apple }) {
                 v.addArrangedSubview(hint(
                     "Do not want to wait? Pick Apple Intelligence above: it "
-                    + "needs no download and works immediately. Parakeet keeps "
-                    + "downloading, and you can switch to it in Settings once "
-                    + "it has finished."))
+                    + "needs no download and works immediately. Choosing it "
+                    + "stops this download, and you can start it again any "
+                    + "time by switching back in Settings."))
             }
         case .ready:
             v.addArrangedSubview(status(true, granted: "Ready to dictate.", pending: ""))
