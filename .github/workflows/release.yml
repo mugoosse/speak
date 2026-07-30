@@ -22,10 +22,22 @@ name: Release
 #
 # See RELEASING.md for how to produce each one.
 
+# Manual only, deliberately. Releases are cut locally with ./release.sh, which
+# pushes the tag itself; if this also triggered on tag push, every local
+# release would start a CI job that builds for ten minutes, finds no signing
+# secrets and refuses to publish, mailing a failure for a release that
+# actually succeeded.
+#
+# Keeping it dispatch-only means the whole pipeline stays here, ready, for
+# whenever the secrets are set, without firing on its own. See RELEASING.md
+# for why the keys are not in GitHub secrets today.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish, for example v1.0.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -52,6 +64,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Build the tag that was asked for, not whatever main points at.
+          ref: ${{ inputs.tag }}
           fetch-depth: 0        # make_app.sh derives the build number from commit count
 
       # Pick the newest Xcode the image has, rather than pinning a version that
@@ -129,6 +143,10 @@ jobs:
       - name: Build, notarize and publish
         env:
           GH_TOKEN: ${{ github.token }}
+          # release.sh cross-checks this against VERSION. On a dispatch run the
+          # real GITHUB_REF_NAME is the branch, so hand it the tag instead or
+          # the check compares "main" to "v1.0.1" and fails every time.
+          GITHUB_REF_NAME: ${{ inputs.tag }}
         run: ./release.sh --publish
 
       - name: Remove Sparkle signing key
@@ -150,4 +168,4 @@ jobs:
         if: env.HAS_TAP_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run homebrew-tap.yml -f tag="${GITHUB_REF_NAME}"
+        run: gh workflow run homebrew-tap.yml -f tag="${{ inputs.tag }}"

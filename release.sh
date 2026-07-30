@@ -38,6 +38,9 @@ DMG="$DIST/Speak-$VERSION.dmg"
 SUMS="$DIST/SHA256SUMS.txt"
 APPCAST="$DIST/appcast.xml"
 TAG="v$VERSION"
+# Which bundle each notarization submission belongs to. Outside dist/, which
+# is wiped on every run, and gitignored.
+STATE="$ROOT/.notarization"
 
 # --- preflight -------------------------------------------------------------
 #
@@ -88,6 +91,23 @@ else
         echo "       and there is none at $APP." >&2
         exit 1
     }
+
+    # Not rebuilding is not enough: anything else that ran make_app.sh since
+    # the submission has already replaced the bundle, and Apple's ticket is
+    # keyed to the cdhash of the one it saw. Without this check that surfaces
+    # as "Record not found" from stapler after the wait, which reads like an
+    # Apple fault rather than a local one.
+    NOW_HASH=$(codesign -dvvv "$APP" 2>&1 | sed -n 's/^CDHash=//p')
+    WAS_HASH=$(sed -n "s/^$RESUME //p" "$STATE" 2>/dev/null)
+    if [ -n "$WAS_HASH" ] && [ "$NOW_HASH" != "$WAS_HASH" ]; then
+        echo "error: $APP is not the bundle that was submitted." >&2
+        echo "       submitted cdhash: $WAS_HASH" >&2
+        echo "       on disk now:      $NOW_HASH" >&2
+        echo "       Something rebuilt it since. The ticket cannot be" >&2
+        echo "       stapled to a different binary, so this submission is" >&2
+        echo "       spent. Run ./release.sh again to build and resubmit." >&2
+        exit 1
+    fi
     echo "reusing the existing bundle; rebuilding would invalidate the ticket"
 fi
 
@@ -125,6 +145,10 @@ if [ "$HAS_DEVID" -gt 0 ] && [ "$HAS_CREDS" -eq 1 ]; then
             | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
         rm -f "$SUBMIT"
         [ -n "$SUBMISSION" ] || { echo "error: no submission id returned." >&2; exit 1; }
+        # Remember which bundle this ticket will belong to, so --resume can
+        # refuse early if the bundle has been replaced in the meantime.
+        echo "$SUBMISSION $(codesign -dvvv "$APP" 2>&1 | sed -n 's/^CDHash=//p')" \
+            >> "$STATE"
         echo "submission: $SUBMISSION"
     fi
 
@@ -151,7 +175,14 @@ if [ "$HAS_DEVID" -gt 0 ] && [ "$HAS_CREDS" -eq 1 ]; then
         exit 1
     fi
 
-    xcrun stapler staple "$APP"
+    if ! xcrun stapler staple "$APP"; then
+        echo >&2
+        echo "error: notarization succeeded but stapling failed." >&2
+        echo "       Apple accepted the submission, so this is almost always" >&2
+        echo "       a local mismatch: $APP is no longer the bundle that was" >&2
+        echo "       submitted. Run ./release.sh again to build and resubmit." >&2
+        exit 1
+    fi
     NOTARIZED=1
     echo "stapled"
 else

@@ -1,8 +1,14 @@
 .build/
 .xcbuild/
-.swiftpm/
+# Not all of .swiftpm: the shared scheme has to be tracked. xcodebuild
+# generates schemes on demand, but only when it can write them, and on a clean
+# CI checkout it cannot, so the build fails with "does not contain a scheme
+# named speak". Committing it makes the scheme deterministic everywhere.
+.swiftpm/configuration/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
 Speak.app/
 speak.app/
 *.log
 .DS_Store
 dist/
+.notarization
