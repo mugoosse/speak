@@ -125,24 +125,66 @@ HAS_CREDS=0
 xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1 \
     && HAS_CREDS=1
 
+# Submit a path and print the submission id. Submit and wait are separate
+# calls: `submit --wait` polls over the network for as long as Apple's queue
+# takes, and a single dropped packet kills the run with the submission already
+# accepted server-side, which then has to be thrown away. Splitting them means
+# a lost connection costs a retry of the wait, not of the upload.
+submit_for_notarization() {
+    xcrun notarytool submit "$1" --keychain-profile "$KEYCHAIN_PROFILE" \
+        --output-format json | sed -n 's/.*"id":"\([^"]*\)".*/\1/p'
+}
+
+# Wait for a verdict, then staple the ticket to $2.
+await_and_staple() {
+    _id="$1"
+    _path="$2"
+
+    # Retry the wait rather than the upload. Apple's queue has taken over four
+    # hours on a first submission from a new Developer ID account.
+    _attempt=1
+    until xcrun notarytool wait "$_id" \
+        --keychain-profile "$KEYCHAIN_PROFILE" --timeout 30m; do
+        _attempt=$((_attempt + 1))
+        [ "$_attempt" -gt 3 ] && break
+        echo "wait failed, retrying ($_attempt/3). Resume later with:" >&2
+        echo "  ./release.sh --resume $_id" >&2
+        sleep 30
+    done
+
+    _status=$(xcrun notarytool info "$_id" \
+        --keychain-profile "$KEYCHAIN_PROFILE" --output-format json \
+        | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')
+    if [ "$_status" != "Accepted" ]; then
+        echo "error: notarization returned '$_status'." >&2
+        echo "       Reasons:" >&2
+        xcrun notarytool log "$_id" \
+            --keychain-profile "$KEYCHAIN_PROFILE" 2>/dev/null >&2 || true
+        exit 1
+    fi
+
+    if ! xcrun stapler staple "$_path"; then
+        echo >&2
+        echo "error: notarization succeeded but stapling failed." >&2
+        echo "       Apple accepted the submission, so this is almost always" >&2
+        echo "       a local mismatch: $_path is no longer what was submitted." >&2
+        echo "       Run ./release.sh again to build and resubmit." >&2
+        exit 1
+    fi
+}
+
 NOTARIZED=0
 if [ "$HAS_DEVID" -gt 0 ] && [ "$HAS_CREDS" -eq 1 ]; then
     if [ -n "$RESUME" ]; then
         echo "resuming notarization $RESUME…"
         SUBMISSION="$RESUME"
     else
-        echo "notarizing…"
-        # Submission always uses a zip, whatever we ship afterwards.
+        echo "notarizing the app…"
+        # An .app cannot be uploaded directly; it goes as a zip whatever we
+        # ship afterwards.
         SUBMIT="$DIST/submit.zip"
         ditto -c -k --keepParent "$APP" "$SUBMIT"
-        # Submit and wait separately. `submit --wait` polls over the network for
-        # as long as Apple's queue takes, and a single dropped packet kills the
-        # whole run with the submission already accepted server-side, which
-        # then has to be thrown away. Splitting them means a lost connection
-        # costs a retry of the wait, not of the upload.
-        SUBMISSION=$(xcrun notarytool submit "$SUBMIT" \
-            --keychain-profile "$KEYCHAIN_PROFILE" --output-format json \
-            | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+        SUBMISSION=$(submit_for_notarization "$SUBMIT")
         rm -f "$SUBMIT"
         [ -n "$SUBMISSION" ] || { echo "error: no submission id returned." >&2; exit 1; }
         # Remember which bundle this ticket will belong to, so --resume can
@@ -152,39 +194,9 @@ if [ "$HAS_DEVID" -gt 0 ] && [ "$HAS_CREDS" -eq 1 ]; then
         echo "submission: $SUBMISSION"
     fi
 
-    # Retry the wait rather than the upload. Apple's queue has taken over an
-    # hour on a first submission from a new Developer ID account.
-    ATTEMPT=1
-    until xcrun notarytool wait "$SUBMISSION" \
-        --keychain-profile "$KEYCHAIN_PROFILE" --timeout 30m; do
-        ATTEMPT=$((ATTEMPT + 1))
-        [ "$ATTEMPT" -gt 3 ] && break
-        echo "wait failed, retrying ($ATTEMPT/3). Resume later with:" >&2
-        echo "  ./release.sh --resume $SUBMISSION" >&2
-        sleep 30
-    done
-
-    STATUS=$(xcrun notarytool info "$SUBMISSION" \
-        --keychain-profile "$KEYCHAIN_PROFILE" --output-format json \
-        | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')
-    if [ "$STATUS" != "Accepted" ]; then
-        echo "error: notarization returned '$STATUS'." >&2
-        echo "       Reasons:" >&2
-        xcrun notarytool log "$SUBMISSION" \
-            --keychain-profile "$KEYCHAIN_PROFILE" 2>/dev/null >&2 || true
-        exit 1
-    fi
-
-    if ! xcrun stapler staple "$APP"; then
-        echo >&2
-        echo "error: notarization succeeded but stapling failed." >&2
-        echo "       Apple accepted the submission, so this is almost always" >&2
-        echo "       a local mismatch: $APP is no longer the bundle that was" >&2
-        echo "       submitted. Run ./release.sh again to build and resubmit." >&2
-        exit 1
-    fi
+    await_and_staple "$SUBMISSION" "$APP"
     NOTARIZED=1
-    echo "stapled"
+    echo "stapled the app"
 else
     echo "warning: skipping notarization." >&2
     [ "$HAS_DEVID" -eq 0 ] && \
@@ -215,6 +227,25 @@ SIGN_ID=$(security find-identity -v -p codesigning 2>/dev/null \
     | awk -F'"' '/Developer ID Application/ {print $2; exit}')
 if [ -n "$SIGN_ID" ]; then
     codesign --force --sign "$SIGN_ID" --timestamp "$DMG" 2>/dev/null || true
+fi
+
+# The DMG needs its own ticket, not just the app inside it.
+#
+# Stapling the app makes the app pass Gatekeeper once it is in /Applications,
+# but the DMG is what the user downloads, and it is what Gatekeeper evaluates
+# when they open it. A DMG that only contains a notarized app is still itself
+# "Unnotarized Developer ID" and produces a warning on first open, which is
+# exactly the dialog notarizing was meant to remove.
+#
+# This has to happen after signing, and the checksums have to be taken after
+# this, because stapling rewrites the file.
+if [ "$NOTARIZED" -eq 1 ]; then
+    echo "notarizing the dmg…"
+    DMG_SUBMISSION=$(submit_for_notarization "$DMG")
+    [ -n "$DMG_SUBMISSION" ] || { echo "error: no dmg submission id." >&2; exit 1; }
+    echo "submission: $DMG_SUBMISSION"
+    await_and_staple "$DMG_SUBMISSION" "$DMG"
+    echo "stapled the dmg"
 fi
 
 # --- appcast ---------------------------------------------------------------
@@ -271,13 +302,25 @@ sed 's/^/  /' "$SUMS"
 
 # --- verify ----------------------------------------------------------------
 
-echo
-printf "gatekeeper: "
+# Check the DMG, not just the app. The app passing says nothing about what
+# happens when someone opens the download: the app was passing while the DMG
+# around it was still rejected, and the DMG is the artifact people receive.
+GATEKEEPER_OK=1
+
+printf "\ngatekeeper, app: "
 if spctl -a -vvv -t exec "$APP" 2>&1 | grep -q "accepted"; then
-    echo "accepted (installs cleanly)"
-    GATEKEEPER_OK=1
+    echo "accepted"
 else
-    echo "REJECTED (users must bypass Gatekeeper manually)"
+    echo "REJECTED"
+    GATEKEEPER_OK=0
+fi
+
+printf "gatekeeper, dmg: "
+if spctl -a -vvv -t open --context context:primary-signature "$DMG" 2>&1 \
+    | grep -q "accepted"; then
+    echo "accepted (opens with no warning)"
+else
+    echo "REJECTED (users get a Gatekeeper dialog on open)"
     GATEKEEPER_OK=0
 fi
 
