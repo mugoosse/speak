@@ -120,12 +120,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // A launch the user asked for has to show something. Onboarding is that
         // something on a first run; every other time it is the menu, matching
-        // what a relaunch already does. Deferred by one turn of the run loop
-        // because the menu runs a modal tracking loop, and running it inside
-        // the launch handler holds up the reply to the launch Apple Event.
-        if !onboardingShown, !launchedAtLogin {
-            DispatchQueue.main.async { self.showMenu() }
-        }
+        // what a relaunch already does.
+        if !onboardingShown, !launchedAtLogin { showMenu() }
     }
 
     /// True when launchd started us at login rather than a person opening us.
@@ -156,11 +152,85 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return true
     }
 
+    /// Set while a menu is waiting for the app to be activated.
+    private var menuPending = false
+    private var activationWindow: NSWindow?
+
+    /// Drop the status item's menu, activating the app first if need be.
+    ///
+    /// Two separate things make this more than one line.
+    ///
+    /// A status item menu is only drawn while its own app is active. Opened
+    /// from a background app it tracks invisibly: the button highlights, the
+    /// main thread sits in the menu's modal loop, and nothing appears on
+    /// screen. That is the "I open Speak and nothing happens" this fixes.
+    ///
+    /// And macOS will not activate an app that has no window, which is exactly
+    /// what an `LSUIElement` app is between menus. `NSApp.activate` on its own
+    /// is ignored: traced over four seconds after a launch from Spotlight, the
+    /// app never became frontmost, and the click that followed opened a menu
+    /// nobody could see. So put a window on screen first, one pixel and
+    /// effectively transparent, purely so there is something to activate, and
+    /// take it away again once the menu closes.
+    ///
+    /// Reopening an already-running copy needs none of this, because Launch
+    /// Services activates us on its way in. That is why relaunching always
+    /// worked and launching never did.
     func showMenu() {
         refreshMenu()
+        guard !NSApp.isActive else { dropMenu(); return }
+
+        let anchor = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        anchor.isOpaque = false
+        anchor.backgroundColor = .clear
+        anchor.alphaValue = 0.01
+        anchor.level = .floating
+        anchor.ignoresMouseEvents = true
+        // A window built in code releases itself when closed, which ARC then
+        // does again on our own reference. That crashed the app in
+        // objc_release the moment the menu was dismissed, taking the status
+        // item with it and looking exactly like Speak quitting on its own.
+        anchor.isReleasedWhenClosed = false
+        anchor.orderFrontRegardless()
+        activationWindow = anchor
+
+        menuPending = true
+        NSApp.activate(ignoringOtherApps: true)
+        // Activation takes about half a second to land after a launch, and it
+        // can still be refused: a launch requested by a background process
+        // never gets it. Stop waiting after two seconds, and stop waiting
+        // rather than clicking anyway. A menu that opens invisibly and shuts
+        // says nothing, and a request left armed would drop the menu minutes
+        // later, the next time something else made Speak active.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, self.menuPending else { return }
+            self.menuPending = false
+            self.discardActivationWindow()
+        }
+    }
+
+    func applicationDidBecomeActive(_ n: Notification) {
+        guard menuPending else { return }
+        menuPending = false
+        // Not inline: this runs while the activation is still being handled,
+        // and a menu's modal tracking loop must not sit inside that. At launch
+        // it would also hold up the reply to the launch Apple Event.
+        DispatchQueue.main.async { [weak self] in self?.dropMenu() }
+    }
+
+    private func dropMenu() {
         // performClick is the supported way to drop a status item's menu
-        // programmatically; there is no public "open this menu" call.
+        // programmatically; there is no public "open this menu" call. It
+        // returns once the menu closes, which is when the window that bought
+        // the activation has done its job.
         statusItem?.button?.performClick(nil)
+        discardActivationWindow()
+    }
+
+    private func discardActivationWindow() {
+        activationWindow?.orderOut(nil)
+        activationWindow = nil
     }
 
     func startOnboarding() {
