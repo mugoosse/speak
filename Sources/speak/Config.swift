@@ -198,15 +198,16 @@ enum ModelStatus {
 
     var summary: String {
         switch self {
-        case .downloading(let elapsed, let total, let received, let fraction):
+        case .downloading(_, let total, let received, let fraction):
             let f = ByteCountFormatter()
             f.countStyle = .file
             f.allowsNonnumericFormatting = false
             guard let fraction, let received else {
-                // Before the first callback lands, say what is coming rather
-                // than showing a percentage we do not have yet.
-                return "downloading model… \(f.string(fromByteCount: total)), "
-                     + "\(Self.duration(elapsed)) so far"
+                // The first second, before a measurement exists. Say what is
+                // coming and nothing else: a percentage would be a guess, and
+                // "0s so far" is a stopwatch reporting that no time has
+                // passed, which nobody needed telling.
+                return "downloading model… \(f.string(fromByteCount: total))"
             }
             // No elapsed time. It was worth showing when there was nothing
             // else to show, as the only evidence anything was still happening.
@@ -229,10 +230,6 @@ enum ModelStatus {
         return nil
     }
 
-    static func duration(_ t: TimeInterval) -> String {
-        let s = Int(t)
-        return s < 60 ? "\(s)s" : "\(s / 60)m \(s % 60)s"
-    }
 
     /// Turns library errors into something a person can act on.
     static func describe(_ error: Error) -> String {
