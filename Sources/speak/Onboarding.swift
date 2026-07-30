@@ -195,7 +195,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
                     self.render()
                 } else {
                     if let s = self.owner?.status {
-                        self.liveStatusLine?.stringValue = "○ " + s.summary
+                        self.liveStatusLine?.stringValue = s.summary
                         if let bar = self.liveProgressBar, let f = s.fraction {
                             if bar.isIndeterminate {
                                 bar.stopAnimation(nil)
@@ -371,9 +371,17 @@ final class Onboarding: NSObject, NSWindowDelegate {
         column.alignment = .leading
         column.spacing = 10
 
-        let disclose = NSButton(
-            title: (expanded ? "▾  " : "▸  ") + "Not working?",
-            target: self, action: toggle)
+        // A drawn chevron rather than "▸". The text arrows come from a
+        // different family than the label and render visibly smaller than the
+        // type they sit next to; a symbol configured at the label's point size
+        // matches it exactly.
+        let disclose = NSButton(title: "Not working?", target: self, action: toggle)
+        disclose.image = (NSImage(
+            systemSymbolName: expanded ? "chevron.down" : "chevron.right",
+            accessibilityDescription: nil) ?? NSImage())
+            .withSymbolConfiguration(
+                NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold))
+        disclose.imagePosition = .imageLeading
         disclose.bezelStyle = .inline
         disclose.controlSize = .small
         disclose.setAccessibilityLabel(
@@ -444,8 +452,8 @@ final class Onboarding: NSObject, NSWindowDelegate {
         case .downloading, .loading:
             // Kept so the timer can tick progress without rebuilding the radio
             // buttons above it.
-            let line = status(false, granted: "", pending: state.summary)
-            liveStatusLine = line
+            let (line, label) = statusRow(false, state.summary)
+            liveStatusLine = label
             v.addArrangedSubview(line)
 
             let bar = NSProgressIndicator()
@@ -614,11 +622,36 @@ final class Onboarding: NSObject, NSWindowDelegate {
         return t
     }
 
-    private func status(_ ok: Bool, granted: String, pending: String) -> NSTextField {
-        let t = NSTextField(labelWithString: (ok ? "● " : "○ ") + (ok ? granted : pending))
-        t.font = .systemFont(ofSize: 12)
-        t.textColor = ok ? .systemGreen : .secondaryLabelColor
-        return t
+    private func status(_ ok: Bool, granted: String, pending: String) -> NSView {
+        statusRow(ok, ok ? granted : pending).row
+    }
+
+    /// A symbol and a line of text, returning both so a caller that updates the
+    /// text every second does not have to rebuild the row.
+    ///
+    /// These were text bullets, "● " and "○ ". At 12pt on a dark background a
+    /// hollow circle reads as a tick, so a step that was still waiting looked
+    /// like a step that had succeeded. A drawn symbol cannot be misread that
+    /// way, and it matches the checkmarks in the step rail.
+    private func statusRow(_ ok: Bool, _ text: String) -> (row: NSView, label: NSTextField) {
+        let size: CGFloat = 12
+        let config = NSImage.SymbolConfiguration(pointSize: size, weight: .semibold)
+        let name = ok ? "checkmark.circle.fill" : "circle.dotted"
+        let icon = NSImageView(image: (NSImage(
+            systemSymbolName: name, accessibilityDescription: nil)
+            ?? NSImage()).withSymbolConfiguration(config) ?? NSImage())
+        icon.contentTintColor = ok ? .systemGreen : .tertiaryLabelColor
+
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: size)
+        label.textColor = ok ? .systemGreen : .secondaryLabelColor
+
+        let row = NSStackView(views: [icon, label])
+        row.orientation = .horizontal
+        row.alignment = .firstBaseline
+        row.spacing = 7
+        row.setAccessibilityLabel((ok ? "Done. " : "Waiting. ") + text)
+        return (row, label)
     }
 
     // MARK: - Navigation
