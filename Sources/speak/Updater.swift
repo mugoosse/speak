@@ -8,16 +8,38 @@ import Sparkle
 /// which is the same trap Onboarding works around. Sparkle shows its own
 /// windows and modal alerts, so every one of those callbacks has to activate
 /// the app first or an update prompt becomes invisible and the app looks hung.
-final class Updater: NSObject, SPUStandardUserDriverDelegate {
+final class Updater: NSObject, SPUStandardUserDriverDelegate, SPUUpdaterDelegate {
+    /// What the last finished check concluded.
+    ///
+    /// Sparkle answers a check in a window that is then dismissed, taking the
+    /// answer with it, and a scheduled check that finds nothing says nothing at
+    /// all. Settings keeps the outcome on screen so "am I on the latest
+    /// version" has an answer that survives closing a dialog.
+    enum Outcome: Equatable {
+        case unknown
+        case checking
+        case upToDate(String)
+        case available(String)
+        case failed(String)
+    }
+
     /// Built in `init`, not stored inline, because the controller needs `self`
     /// as its user driver delegate and that is not available until after
     /// `super.init()`.
     private var controller: SPUStandardUpdaterController!
 
+    private(set) var outcome: Outcome = .unknown {
+        didSet { if outcome != oldValue { onChange?() } }
+    }
+
+    /// Called on the main thread whenever `outcome` changes, so Settings can
+    /// follow a check it did not start itself.
+    var onChange: (() -> Void)?
+
     override init() {
         super.init()
         controller = SPUStandardUpdaterController(
-            startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+            startingUpdater: true, updaterDelegate: self, userDriverDelegate: self)
     }
 
     /// Sparkle disables its own menu item while a check is already running or
@@ -35,6 +57,9 @@ final class Updater: NSObject, SPUStandardUserDriverDelegate {
 
     @objc func checkForUpdates(_ sender: Any?) {
         NSApp.activate(ignoringOtherApps: true)
+        // Set before asking, not in a delegate callback: a check that never
+        // reaches the network still has to stop showing the previous answer.
+        outcome = .checking
         controller.checkForUpdates(sender)
     }
 
@@ -52,5 +77,35 @@ final class Updater: NSObject, SPUStandardUserDriverDelegate {
         // A scheduled check that found something must not steal focus silently;
         // activating here is what makes the release-notes window reachable.
         if handleShowingUpdate { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    // MARK: - SPUUpdaterDelegate
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        outcome = .available(item.displayVersionString)
+    }
+
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
+        // Sparkle's own wording, which names the newest version on the feed and
+        // covers the cases where a newer one exists but cannot run here: macOS
+        // too old, Intel hardware, and so on. Writing our own would either
+        // repeat that work or quietly claim "up to date" when it is not.
+        outcome = .upToDate((error as NSError).localizedRecoverySuggestion
+                            ?? "Speak is up to date.")
+    }
+
+    func updater(_ updater: SPUUpdater,
+                 didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
+                 error: (any Error)?) {
+        // Only failures are recorded here. Finding an update and finding none
+        // both arrive through their own callback first, and this one fires
+        // again when a found update is dismissed or skipped, which must not
+        // erase the line saying that update exists.
+        guard let error = error as NSError?,
+              error.code != Int(SUError.noUpdateError.rawValue) else {
+            if outcome == .checking { outcome = .unknown }
+            return
+        }
+        outcome = .failed(error.localizedDescription)
     }
 }

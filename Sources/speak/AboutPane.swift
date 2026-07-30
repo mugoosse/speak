@@ -6,10 +6,53 @@ final class AboutPane: Pane {
     private static let sourceURL = "https://github.com/mugoosse/speak"
     weak var app: App?
 
+    private var checkButton: NSButton!
+    private var autoCheck: NSButton!
+    private var result: NSTextField!
+    private var lastChecked: NSTextField!
+
+    /// A check can also be started from the menu bar, and a scheduled one
+    /// starts on its own, so follow the updater rather than only reacting to
+    /// this pane's button.
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        refreshUpdates()
+        app?.updater.onChange = { [weak self] in self?.refreshUpdates() }
+    }
+
+    override func viewWillDisappear() {
+        super.viewWillDisappear()
+        app?.updater.onChange = nil
+    }
+
     override func build() {
         stack.addArrangedSubview(header())
         stack.addArrangedSubview(separator())
 
+        stack.addArrangedSubview(heading("Updates"))
+
+        checkButton = NSButton(title: "Check Now",
+                               target: self, action: #selector(checkForUpdates))
+        autoCheck = NSButton(checkboxWithTitle: "Check automatically",
+                             target: self, action: #selector(toggleAutomatic))
+        stack.addArrangedSubview(row([checkButton, autoCheck]))
+
+        result = NSTextField(wrappingLabelWithString: "")
+        result.font = .systemFont(ofSize: 12)
+        result.preferredMaxLayoutWidth = 470
+        stack.addArrangedSubview(result)
+
+        lastChecked = caption("")
+        stack.addArrangedSubview(lastChecked)
+
+        stack.addArrangedSubview(caption(
+            "Updates come from this project's GitHub releases. Each one is "
+            + "checked against Speak's signing key before it is installed, and "
+            + "the check itself sends nothing about you."))
+
+        refreshUpdates()
+
+        stack.addArrangedSubview(separator())
         stack.addArrangedSubview(heading("Setup"))
         let again = NSButton(title: "Run setup again…",
                              target: self, action: #selector(runSetupAgain))
@@ -37,9 +80,9 @@ final class AboutPane: Pane {
 
         stack.addArrangedSubview(separator())
         stack.addArrangedSubview(caption(
-            "Speak is free software under the AGPL 3.0. It has no account, no "
-            + "telemetry, and no network access beyond downloading a model you "
-            + "chose."))
+            "Speak is free software under the AGPL 3.0. It has no account and "
+            + "no telemetry. It uses the network twice: to download a model you "
+            + "chose, and to ask whether a newer version of Speak exists."))
 
         // The AGPL is a source-availability licence, so the About box is the
         // honest place to say where that source is.
@@ -112,6 +155,57 @@ final class AboutPane: Pane {
         Apple Intelligence transcription uses the Speech framework built \
         into macOS.
         """
+    }
+
+    /// Mirror the updater into the three controls, in place. Rebuilding the
+    /// pane instead would replace the button under the cursor of someone who
+    /// has just clicked it.
+    private func refreshUpdates() {
+        guard let updater = app?.updater, checkButton != nil else { return }
+
+        checkButton.isEnabled = updater.canCheck
+        autoCheck.state = updater.automaticallyChecks ? .on : .off
+
+        switch updater.outcome {
+        case .unknown:
+            result.stringValue = ""
+            result.isHidden = true
+        case .checking:
+            result.stringValue = "Checking…"
+            result.textColor = .secondaryLabelColor
+            result.isHidden = false
+        case .upToDate(let why):
+            result.stringValue = "● \(why)"
+            result.textColor = .systemGreen
+            result.isHidden = false
+        case .available(let version):
+            result.stringValue = "● Version \(version) is available."
+            result.textColor = .systemBlue
+            result.isHidden = false
+        case .failed(let why):
+            result.stringValue = "○ \(why)"
+            result.textColor = .systemOrange
+            result.isHidden = false
+        }
+
+        if let date = updater.lastCheck {
+            let f = DateFormatter()
+            f.dateStyle = .medium
+            f.timeStyle = .short
+            f.doesRelativeDateFormatting = true
+            lastChecked.stringValue = "Last checked \(f.string(from: date))."
+        } else {
+            lastChecked.stringValue = "Not checked yet."
+        }
+    }
+
+    @objc private func checkForUpdates() {
+        app?.updater.checkForUpdates(self)
+        refreshUpdates()
+    }
+
+    @objc private func toggleAutomatic(_ sender: NSButton) {
+        app?.updater.automaticallyChecks = sender.state == .on
     }
 
     @objc private func openWebsite() {

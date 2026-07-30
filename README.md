@@ -186,9 +186,11 @@ Delete the file to clear it. Nothing is sent anywhere.
 
 Speak checks for updates every two days and offers them through
 [Sparkle](https://sparkle-project.org). **Check for Updates…** in the menu bar
-does it on demand. Each update is verified twice before it installs: an EdDSA
-signature over the archive, checked against a public key compiled into the app,
-and macOS code signing. An update signed by anything else is refused.
+does it on demand, and **Settings → About** has the same button along with the
+answer the last check gave, the time it ran, and a switch for the scheduled
+ones. Each update is verified twice before it installs: an EdDSA signature over
+the archive, checked against a public key compiled into the app, and macOS code
+signing. An update signed by anything else is refused.
 
 Homebrew installs update the usual way instead, and the two do not fight:
 
