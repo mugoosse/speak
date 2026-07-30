@@ -1,9 +1,8 @@
 #!/bin/sh
 # Build, bundle, and install to /Applications, then restart the running copy.
 #
-# Installing to a fixed path is what makes the Login Items entry survive
-# rebuilds: the login item stores a path, so shipping new builds to the same
-# location means you register it once and never touch it again.
+# Installing to a fixed path lets macOS keep the app's login-item registration
+# attached to the same bundle across rebuilds.
 #
 # Permissions survive too, because make_app.sh always signs with the same
 # identifier (com.mgo.speak) and TCC keys the Accessibility grant to that

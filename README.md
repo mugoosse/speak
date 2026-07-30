@@ -194,9 +194,9 @@ Homebrew installs update the usual way instead, and the two do not fight:
 brew upgrade --cask speak
 ```
 
-To run at login: System Settings → General → Login Items → **+** →
-`/Applications/Speak.app`. Login Items stores a **path**, and every install
-route ships to the same one, so register it once and never touch it again.
+Speak starts at login by default on a new installation. Change this at any time
+under **Settings → General → Start Speak at login**. If macOS needs approval,
+Speak links directly to System Settings → General → Login Items.
 
 If you build from source, `./install.sh` quits the old copy, replaces it and
 relaunches. Permissions survive because `make_app.sh` signs with a stable
@@ -263,7 +263,7 @@ rm -rf ~/.cache/huggingface/hub/mlx-audio/mlx-community_parakeet-tdt-0.6b-v*
 Both paths are the same model stored twice; see [Disk use](#disk-use). Apple
 Intelligence leaves nothing behind, as its assets belong to macOS.
 
-Finally, if you added Speak to Login Items, remove it there too: System
+Finally, remove Speak from Login Items if it still appears there: System
 Settings → General → Login Items.
 
 ## Config

@@ -41,6 +41,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
         setIcon("mic.slash", "loading model…")
 
+        // Start-at-login is on by default for new installations only. Record
+        // the decision before onboarding changes `Settings.onboarded`, and
+        // never use startup to override a later choice by the user.
+        LoginItem.applyDefaultIfNeeded(isNewInstallation: !Settings.onboarded)
+
         reloadModel()
 
         if Permissions.allGranted {

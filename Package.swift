@@ -20,6 +20,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),
+                .linkedFramework("ServiceManagement"),
                 // Sparkle ships as a binary framework, and SwiftPM does not
                 // embed frameworks into a bare executable. make_app.sh copies
                 // it into Contents/Frameworks, so the runtime search path has

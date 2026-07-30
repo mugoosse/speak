@@ -54,6 +54,7 @@ touching UI code.
 | `Permissions.swift` | TCC checks and Settings deep links |
 | `Onboarding.swift` | stepped first-run window |
 | `SettingsWindow.swift` | tabbed Settings: General, Model, History, Permissions |
+| `LoginItem.swift` | native start-at-login registration through ServiceManagement |
 | `AboutPane.swift` | the About tab: version, author, credits, licence |
 | `Updater.swift` | Sparkle wiring, and the activation an `LSUIElement` app needs |
 

@@ -46,7 +46,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let w = NSWindow(contentViewController: controller)
         w.title = "Speak Settings"
         w.styleMask = [.titled, .closable, .miniaturizable]
-        w.setContentSize(NSSize(width: 540, height: 420))
+        w.setContentSize(NSSize(width: 540, height: 500))
         w.center()
         w.delegate = self
         w.isReleasedWhenClosed = false
@@ -78,7 +78,7 @@ class Pane: NSViewController {
         stack.spacing = 14
         stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 22, right: 24)
         view = stack
-        view.setFrameSize(NSSize(width: 540, height: 420))
+        view.setFrameSize(NSSize(width: 540, height: 500))
         build()
     }
 
@@ -134,10 +134,12 @@ final class GeneralPane: Pane {
     private var changeButton: NSButton!
     private var warning: NSTextField!
     private var micPopup: NSPopUpButton!
+    private var loginError: String?
 
     /// Devices come and go, so rebuild the list whenever the pane is shown.
     override func viewWillAppear() {
         super.viewWillAppear()
+        loginError = nil
         rebuild()
     }
 
@@ -169,6 +171,44 @@ final class GeneralPane: Pane {
     }
 
     override func build() {
+        stack.addArrangedSubview(heading("Startup"))
+
+        let login = NSButton(checkboxWithTitle: "Start Speak at login",
+                             target: self, action: #selector(toggleLoginItem))
+        let loginState = LoginItem.state
+        login.state = loginState.isSelected ? .on : .off
+        var loginControls: [NSView] = [login]
+        if loginState == .requiresApproval || loginError != nil {
+            let open = NSButton(title: "Open Login Items…",
+                                target: self, action: #selector(openLoginItems))
+            loginControls.append(open)
+        }
+        stack.addArrangedSubview(row(loginControls))
+
+        let loginStatus: NSTextField
+        if let loginError {
+            loginStatus = caption(loginError)
+            loginStatus.textColor = .systemOrange
+        } else {
+            switch loginState {
+            case .enabled:
+                loginStatus = caption("On: Speak will open in the menu bar when you log in.")
+            case .requiresApproval:
+                loginStatus = caption(
+                    "Speak is registered, but macOS needs your approval before it can open at login.")
+                loginStatus.textColor = .systemOrange
+            case .notRegistered:
+                loginStatus = caption("Off: Speak will stay closed until you open it.")
+            case .notFound:
+                loginStatus = caption(
+                    "This copy of Speak cannot be registered. "
+                    + "Install it in Applications and try again.")
+                loginStatus.textColor = .systemOrange
+            }
+        }
+        stack.addArrangedSubview(loginStatus)
+
+        stack.addArrangedSubview(separator())
         stack.addArrangedSubview(heading("Shortcut"))
 
         field = NSTextField(labelWithString: Shortcut.description)
@@ -303,6 +343,15 @@ final class GeneralPane: Pane {
 
     @objc private func togglePaste(_ sender: NSButton) {
         Settings.autoPaste = sender.state == .on
+    }
+
+    @objc private func toggleLoginItem(_ sender: NSButton) {
+        loginError = LoginItem.setEnabled(sender.state == .on)
+        rebuild()
+    }
+
+    @objc private func openLoginItems() {
+        LoginItem.openSystemSettings()
     }
 }
 

@@ -183,6 +183,7 @@ enum Settings {
     private static let modelKey = "modelID"
     private static let onboardedKey = "onboarded"
     private static let autoPasteKey = "autoPaste"
+    private static let startAtLoginDefaultAppliedKey = "startAtLoginDefaultApplied"
 
     /// SPEAK_MODEL still wins, so a one-off override works without disturbing
     /// the saved preference.
@@ -212,6 +213,14 @@ enum Settings {
             return UserDefaults.standard.bool(forKey: autoPasteKey)
         }
         set { UserDefaults.standard.set(newValue, forKey: autoPasteKey) }
+    }
+
+    /// Tracks the one-time default separately from the system registration.
+    /// Once this is set, Speak never changes the login item unless the user
+    /// changes it in Settings.
+    static var startAtLoginDefaultApplied: Bool {
+        get { UserDefaults.standard.bool(forKey: startAtLoginDefaultAppliedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: startAtLoginDefaultAppliedKey) }
     }
 
     /// BCP-47 tag for the Apple engine, or nil to choose automatically.
