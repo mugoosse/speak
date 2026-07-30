@@ -2,7 +2,14 @@
   <img width="110" alt="Speak" src="Assets/icon.png" />
 </p>
 
-# Speak
+<h1 align="center">Speak</h1>
+
+<p align="center">
+  <a href="https://github.com/mugoosse/speak/actions/workflows/build.yml"><img src="https://github.com/mugoosse/speak/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
+  <a href="https://github.com/mugoosse/speak/releases/latest"><img src="https://img.shields.io/github/v/release/mugoosse/speak?color=2563eb" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS%2014%2B-Apple%20Silicon-111827" alt="macOS 14+, Apple Silicon" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL%203.0-2563eb" alt="AGPL 3.0" /></a>
+</p>
 
 Push-to-talk dictation for macOS. Press a shortcut, talk, press it again. The
 transcript lands on your clipboard. That is the whole app.
@@ -38,15 +45,6 @@ Speak asks for two permissions, and a setup window walks through both:
 Accessibility is not optional: a modifier chord never arrives as a `keyDown`,
 so it has to be read from a low-level event tap, which macOS only allows for
 trusted apps.
-
-> **If macOS says Speak "cannot be opened because it is from an unidentified
-> developer":** right-click the app and choose **Open**, then **Open** again. On
-> macOS 15 and later, go to System Settings > Privacy & Security, scroll to the
-> bottom, and click **Open Anyway**. This is a one-time step, and it does not
-> apply to Homebrew installs.
->
-> Releases are signed but not yet notarized, which is what triggers that
-> warning.
 
 > **If Speak is listed in Accessibility but the shortcut does nothing:** remove
 > it with the minus button and add it again. macOS keeps a stale entry after an
@@ -184,18 +182,25 @@ Delete the file to clear it. Nothing is sent anywhere.
 
 ## Updating
 
-Login Items stores a **path**, and `install.sh` always ships to the same one, so
-register `/Applications/Speak.app` once and never touch it again. To update:
+Speak checks for updates every two days and offers them through
+[Sparkle](https://sparkle-project.org). **Check for Updates…** in the menu bar
+does it on demand. Each update is verified twice before it installs: an EdDSA
+signature over the archive, checked against a public key compiled into the app,
+and macOS code signing. An update signed by anything else is refused.
+
+Homebrew installs update the usual way instead, and the two do not fight:
 
 ```sh
-./install.sh
+brew upgrade --cask speak
 ```
 
-That quits the old copy, replaces it, and relaunches. Permissions survive
-because `make_app.sh` signs with a stable identity.
-
 To run at login: System Settings → General → Login Items → **+** →
-`/Applications/Speak.app`.
+`/Applications/Speak.app`. Login Items stores a **path**, and every install
+route ships to the same one, so register it once and never touch it again.
+
+If you build from source, `./install.sh` quits the old copy, replaces it and
+relaunches. Permissions survive because `make_app.sh` signs with a stable
+identity.
 
 ### Signing matters more than it looks
 
@@ -307,9 +312,54 @@ file is in flight. A directory-derived percentage sits at 0% for the whole
 download and then jumps to 100%, which reads as hung. Elapsed time is less
 informative but true.
 
-## Not implemented
+## Limitations
 
-Streaming partial results, custom vocabulary, cloud fallback. Deliberately.
+Stated up front rather than discovered later. Most of these are decisions, not
+gaps, but they are still things Speak will not do for you.
+
+**Apple Silicon only, macOS 14 or later.** MLX is Metal-based and has no Intel
+path. The Apple Intelligence engine additionally needs macOS 26.
+
+**No language picker for Parakeet.** mlx-audio accepts a `language` parameter,
+copies it into its output struct, and never passes it to the decoder. A picker
+would be a control that silently does nothing, so there isn't one. The default
+is the English-only v2 for the same reason: multilingual v3 decodes short
+English clips as Cyrillic often enough to be a problem.
+
+**Download progress is elapsed time, not a percentage.** Not a stylistic
+choice; nothing observable grows during the transfer. Explained
+[below](#download-progress-is-elapsed-time-not-a-percentage).
+
+**No streaming partial results.** You get the transcript when you stop talking,
+not as you speak. Parakeet transcribes a complete utterance.
+
+**No custom vocabulary or dictionary.** Names, jargon and acronyms come out
+however the model heard them.
+
+**No cloud fallback, ever.** When the local model is wrong, it is wrong. That
+is the trade for audio never leaving the machine.
+
+**No text insertion at the cursor by default.** The transcript goes to the
+clipboard and you paste it. `SPEAK_AUTOPASTE=1` presses ⌘V for you, but that
+is a synthetic keystroke and some apps ignore it.
+
+**Transcripts are stored in plaintext.** The history file is unencrypted JSONL
+in your home directory. Clear it in Settings if you dictate anything sensitive.
+
+**Parakeet takes about 4.6 GB on disk**, not 2.4 GB, because mlx-audio keeps
+its own copy alongside the Hugging Face cache. See [Disk use](#disk-use).
+
+## Contributing
+
+Pull requests welcome. There is no test target, so verification is manual and
+has to be stated in the PR: `./build.sh`, then `--transcribe` on a real file,
+then one dictation through the shortcut.
+
+`CLAUDE.md` documents the traps in this codebase, all of which were found the
+hard way. Read the one nearest your change before you make it.
+
+- [RELEASING.md](RELEASING.md), how a release is cut
+- [SECURITY.md](SECURITY.md), what Speak can reach and how to report a problem
 
 ## Credits
 
@@ -324,4 +374,8 @@ transcription uses the Speech framework built into macOS.
 
 ## License
 
-MIT
+Copyright (C) 2026 Maxime Goossens.
+
+Speak is free software under the [GNU Affero General Public License v3.0](LICENSE).
+You may use, study, modify and redistribute it, and any distributed derivative
+must also be AGPL 3.0 and ship its source.

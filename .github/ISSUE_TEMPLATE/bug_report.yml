@@ -1,0 +1,104 @@
+name: Bug report
+description: Something does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two commands answer most questions faster than a description can.
+        Running them first usually shortens this by a day.
+
+        ```sh
+        /Applications/Speak.app/Contents/MacOS/Speak --transcribe some.wav
+        SPEAK_DEBUG=1 /Applications/Speak.app/Contents/MacOS/Speak
+        ```
+
+        The first isolates the model from the shortcut: if it prints a
+        transcript, transcription is fine and the problem is in the event tap
+        or permissions. The second traces every modifier change and keyDown.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - The shortcut does nothing
+        - Recording starts but no transcript appears
+        - The transcript is wrong or in the wrong language
+        - Model download fails or hangs
+        - Permissions, onboarding or Settings
+        - Install, update or Gatekeeper
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Speak version
+      description: Settings > About, for example "1.0.0 (build 12)".
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+      description: For example "macOS 15.2, MacBook Pro M4 Max".
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Engine
+      options:
+        - Parakeet v2
+        - Parakeet v3
+        - Apple Intelligence
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: shortcut
+    attributes:
+      label: Shortcut
+      description: The chord you have configured, for example "fn + left shift".
+
+  - type: textarea
+    id: transcribe
+    attributes:
+      label: Output of --transcribe
+      description: >
+        Any wav or m4a will do.
+        `/Applications/Speak.app/Contents/MacOS/Speak --transcribe some.wav`
+        Needs no permissions, and separates a model problem from a shortcut one.
+      render: shell
+
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug trace
+      description: >
+        Only if the shortcut is the problem.
+        `SPEAK_DEBUG=1 /Applications/Speak.app/Contents/MacOS/Speak`, then press
+        your chord a few times and paste what stderr printed.
+      render: shell
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Already tried
+      options:
+        - label: Removed Speak from System Settings > Privacy & Security > Accessibility with the minus button and added it back
+        - label: Confirmed Speak appears under Privacy & Security > Microphone
+        - label: Relaunched after granting permissions

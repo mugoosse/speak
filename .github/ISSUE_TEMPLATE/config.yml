@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Permissions, Gatekeeper and first-launch problems
+    url: https://github.com/mugoosse/speak#first-launch
+    about: The shortcut doing nothing is almost always a stale Accessibility entry. The README covers the fix.
+  - name: Which engine to choose
+    url: https://github.com/mugoosse/speak#engines
+    about: Parakeet v2 is English only by design. v3 is multilingual but misdetects short clips.

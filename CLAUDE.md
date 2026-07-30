@@ -54,6 +54,8 @@ touching UI code.
 | `Permissions.swift` | TCC checks and Settings deep links |
 | `Onboarding.swift` | stepped first-run window |
 | `SettingsWindow.swift` | tabbed Settings: General, Model, History, Permissions |
+| `AboutPane.swift` | the About tab: version, author, credits, licence |
+| `Updater.swift` | Sparkle wiring, and the activation an `LSUIElement` app needs |
 
 ## Things that will bite you
 
@@ -138,29 +140,55 @@ connect time and changes when a device is replugged.
 
 ## Releasing
 
+The process, the one-time setup and the secrets all live in `RELEASING.md`.
+Read that before touching `release.sh` or the workflows. What matters here is
+the handful of constraints the code depends on.
+
 `VERSION` is the single source of truth for the marketing version.
 `CFBundleVersion` is derived from `git rev-list --count HEAD`, so it always
-increases without anyone maintaining it.
-
-```sh
-echo 1.0.1 > VERSION
-git commit -am "1.0.1" && git tag v1.0.1
-git push && git push --tags        # CI builds, notarizes and publishes
-./release.sh                       # or do it locally, artifacts land in dist/
-./release.sh --publish             # local build plus GitHub release
-```
-
-`release.sh` notarizes only when both a Developer ID Application certificate
-and a stored `notarytool` profile exist. Otherwise it still produces artifacts
-and warns that users will meet Gatekeeper. It always prints the `spctl` verdict,
-so a release that would be blocked is obvious before publishing.
+increases without anyone maintaining it. Sparkle compares `CFBundleVersion` to
+decide whether an update exists, so anything that makes it go backwards
+strands every installed copy.
 
 Signing uses the Hardened Runtime, which notarization requires. That is why
 `Speak.entitlements` exists: without `com.apple.security.device.audio-input`
 the runtime blocks the microphone.
 
-After releasing, bump `version` and `sha256` in the Homebrew cask at
-`../homebrew-tap/Casks/speak.rb`.
+`release.sh` is the only thing that publishes, and CI calls the same script, so
+a local release and a CI release cannot diverge.
+
+### Notarization is not a synchronous step
+
+Apple's queue has taken over an hour on a first submission, and a dropped
+connection during the wait kills the run with the submission already accepted
+server-side. That is why submit and wait are separate calls rather than
+`notarytool submit --wait`, and why `--resume <id>` exists. Recombining them
+throws away an hour every time the network hiccups.
+
+### Sparkle's nested code has to be signed inside-out
+
+`Sparkle.framework` contains two XPC services, a helper binary and an updater
+app. Each needs its own signature with the hardened runtime, signed before the
+framework, which is signed before the app: sealing a container fixes whatever
+it holds.
+
+They must not get `$COMMON`. That carries Speak's entitlements and bundle
+identifier, so applying it would grant the microphone to Sparkle's downloader
+and produce four bundles claiming to be `com.mgo.speak`.
+
+The framework is copied with `ditto`, not `cp -R`, because a framework's
+version symlinks get flattened by `cp` and the result fails
+`codesign --verify --deep --strict`.
+
+SwiftPM links Sparkle but never embeds it, so `Package.swift` adds an rpath of
+`@executable_path/../Frameworks` and `make_app.sh` copies the framework there.
+Remove either half and the app dies at launch with a dyld error.
+
+### Losing the Sparkle private key ends the update channel
+
+Installed copies only accept updates signed by the key they shipped with. A new
+key means every existing user has to reinstall by hand. It lives in the login
+keychain; the backup procedure is in `RELEASING.md`.
 
 ## Testing
 

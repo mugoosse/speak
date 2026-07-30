@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest something Speak should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Speak is deliberately one feature: press a chord, talk, press again,
+        paste. Things that are out of scope on purpose are listed under
+        [Limitations](../../README.md#limitations). Proposing one of those is
+        fine, but the case has to be for changing that decision, not for
+        filling a gap that was overlooked.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The situation, not the solution. What breaks down today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should happen instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: cost
+    attributes:
+      label: What it would cost
+      description: >
+        New permission, network access, a setting, a background process,
+        a larger download? An honest answer here helps more than it hurts.
