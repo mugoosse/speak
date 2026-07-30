@@ -23,7 +23,11 @@ enum Cue {
     /// Chosen because it is short and unobtrusive: this one fires every time
     /// you begin speaking, so anything with character becomes irritating fast.
     static let defaultStart = "Tink"
-    static let defaultDone = "Glass"
+
+    /// Blow rather than Glass: this one lands while you are reading back what
+    /// you said, and Glass is close enough to the system alert sound to read
+    /// as something going wrong.
+    static let defaultDone = "Blow"
 
     /// The microphone is live. Fired from the first audio buffer, never from
     /// the keypress, so it cannot lie about whether recording began.
