@@ -346,7 +346,10 @@ final class GeneralPane: Pane {
                    held.nonzeroBitCount <= Shortcut.maxKeys {
                     widest = held
                 }
-                self.field.stringValue = Modifier.describe(held)
+                // The widest chord seen, not the live one: showing what is
+                // held right now makes the field count back down as the keys
+                // are released, then jump back up when it commits.
+                self.field.stringValue = Modifier.describe(widest)
                     + (held.nonzeroBitCount > Shortcut.maxKeys
                        ? "   (max \(Shortcut.maxKeys))" : "")
                 return

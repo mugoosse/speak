@@ -622,7 +622,14 @@ final class Onboarding: NSObject, NSWindowDelegate {
                    held.nonzeroBitCount <= Shortcut.maxKeys {
                     widest = held
                 }
-                self.chordChip?.stringValue = Modifier.describe(held)
+                // The widest chord seen, not what is held at this instant.
+                // Showing the live value makes the chip count back down as the
+                // keys are released: fn + shift, then fn, then fn + shift
+                // again when it commits. The chord being built never shrinks,
+                // so neither should its display.
+                self.chordChip?.stringValue = Modifier.describe(widest)
+                    + (held.nonzeroBitCount > Shortcut.maxKeys
+                       ? "   (max \(Shortcut.maxKeys))" : "")
                 return
             }
             // Everything released. Wait a moment before committing: three keys
