@@ -116,6 +116,26 @@ download) and `~/.cache/huggingface/hub/mlx-audio/…` (mlx-audio's copy).
 Clearing only the second gives a fake fast "download" that is really a local
 copy. A real fresh-install test needs both gone.
 
+### Onboarding must never re-render from `updateControls`
+
+`render()` ends by calling `updateControls()`. If `updateControls()` can call
+`render()`, the two call each other until the stack dies.
+
+That shipped once. `updateControls()` re-rendered whenever the step could
+advance and any label still began with "○", meaning "a permission just landed,
+show the tick". On the **Speech model** step both conditions are permanently
+true while the model downloads: `canAdvance` is `true` there by design, and the
+pending line always starts with "○". The app hung with a beachball on the first
+machine that reached that step without the model already cached, which is every
+new user. It was invisible here because a cached model reaches `.ready` before
+the step is drawn.
+
+Re-rendering is now driven by `structuralKey()`, a comparison of state rather
+than a scan of rendered text. The elapsed-time summary is deliberately excluded
+from that key and its label is updated in place: including it would rebuild the
+body every 0.8s for the length of the download, replacing the engine radio
+buttons under the cursor of someone trying to click one.
+
 ### Windows must float
 
 The app is `LSUIElement`, so it has no Dock icon or app-switcher entry. A window

@@ -10,6 +10,10 @@ import AppKit
 final class Onboarding: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var refresh: Timer?
+    /// `structuralKey()` when the body was last built. See `structuralKey()`.
+    private var renderedKey: String?
+    /// The model step's download line, updated in place between rebuilds.
+    private weak var liveStatusLine: NSTextField?
     private var step = 0
     private var onFinish: (() -> Void)?
 
@@ -118,7 +122,18 @@ final class Onboarding: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         refresh = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.updateControls() }
+            Task { @MainActor in
+                guard let self else { return }
+                // Rebuild only when the body's structure actually changed.
+                if self.renderedKey != self.structuralKey() {
+                    self.render()
+                } else {
+                    if let line = self.liveStatusLine, let s = self.owner?.status {
+                        line.stringValue = "○ " + s.summary
+                    }
+                    self.updateControls()
+                }
+            }
         }
     }
 
@@ -188,7 +203,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
         let state = owner?.status ?? ModelStatus.loading
         switch state {
         case .downloading, .loading:
-            v.addArrangedSubview(status(false, granted: "", pending: state.summary))
+            // Kept so the timer can tick the elapsed time without rebuilding
+            // the radio buttons above it.
+            let line = status(false, granted: "", pending: state.summary)
+            liveStatusLine = line
+            v.addArrangedSubview(line)
             v.addArrangedSubview(hint(
                 "You can continue and close this window; the download keeps "
                 + "going in the background."))
@@ -257,10 +276,14 @@ final class Onboarding: NSObject, NSWindowDelegate {
         body.arrangedSubviews.forEach {
             body.removeArrangedSubview($0); $0.removeFromSuperview()
         }
+        liveStatusLine = nil          // rebuilt by buildModel if this step has one
         s.build(self, body)
+        renderedKey = structuralKey()
         updateControls()
     }
 
+    /// Only the buttons and dots. It must never call `render()`: `render()`
+    /// ends by calling this, so the two would call each other.
     private func updateControls() {
         guard step < steps.count else { return }
         let s = steps[step]
@@ -269,12 +292,35 @@ final class Onboarding: NSObject, NSWindowDelegate {
         nextButton.isEnabled = s.canAdvance()
         pageDots.stringValue = (0..<steps.count)
             .map { $0 == step ? "●" : "○" }.joined(separator: " ")
+    }
 
-        // Re-render when a permission lands so the tick appears without the
-        // user having to click anything.
-        if s.canAdvance(), body.arrangedSubviews.contains(where: { ($0 as? NSTextField)?.stringValue.hasPrefix("○") == true }) {
-            render()
+    /// What the body's *structure* depends on. The timer rebuilds when this
+    /// changes, so a permission landing or a download finishing updates the
+    /// window without the user clicking anything.
+    ///
+    /// This compares state. The previous version sniffed the rendered text for
+    /// a "○" and re-rendered whenever the step could also advance, which on the
+    /// model step is permanently true while the download runs: `canAdvance` is
+    /// `true` there by design and the pending line always starts with "○".
+    /// Since `render()` calls `updateControls()`, that was unbounded
+    /// recursion. The app hung on the first machine that reached this step
+    /// without the model already cached, beachballing over the previous step
+    /// because the run loop never got control back.
+    ///
+    /// The elapsed-time summary is deliberately *not* in this key. It changes
+    /// every tick, and rebuilding the body every 0.8s for the length of a
+    /// multi-minute download would leave the engine radio buttons being
+    /// replaced under the user's cursor while they try to pick one. That line
+    /// is updated in place instead.
+    private func structuralKey() -> String {
+        guard step < steps.count else { return "" }
+        let readiness: String
+        switch owner?.status {
+        case .ready:  readiness = "ready"
+        case .failed: readiness = "failed"
+        default:      readiness = "busy"
         }
+        return "\(step)|\(steps[step].canAdvance())|\(readiness)"
     }
 
     @objc private func next() {
