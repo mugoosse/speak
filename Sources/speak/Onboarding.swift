@@ -177,6 +177,14 @@ final class Onboarding: NSObject, NSWindowDelegate {
         // difference between finishing setup and giving up on it.
         step = min(max(Settings.onboardingStep, 0), steps.count - 1)
 
+        // Resuming past the welcome step means its Continue was pressed in an
+        // earlier run, so the consent it represents has already been given and
+        // the load has to be started here instead. Without this, a relaunch
+        // mid-setup left the model idle forever while the model step waited
+        // for a readiness that nothing was working towards, with Continue
+        // disabled and no way out.
+        if step > 0 { owner?.startModelLoadIfIdle() }
+
         // A regular app for the duration: this window is unrecoverable if it
         // falls behind a System Settings pane, and .floating alone does not
         // give it a Dock icon or an app-switcher entry to get back to. Undone
@@ -431,6 +439,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
     }
 
     private func buildModel(_ v: NSStackView) {
+        // Belt and braces. This step gates on the engine being ready, so
+        // arriving here with nothing loading is a dead end by construction,
+        // whichever route got here.
+        owner?.startModelLoadIfIdle()
+
         v.addArrangedSubview(paragraph(
             "Speech recognition runs entirely on this Mac. Choose which engine "
             + "does the work; you can change it later in Settings."))
