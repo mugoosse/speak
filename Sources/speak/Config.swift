@@ -105,9 +105,46 @@ struct ModelChoice {
     }
 
     /// Progress is whichever location has more: the hub cache while fetching,
-    /// mlx-audio's copy once it has been unpacked there.
+    /// mlx-audio's copy once it has been unpacked there, plus whatever is
+    /// still in flight.
     var bytesOnDisk: Int64 {
         max(size(of: downloadDirectory), size(of: cacheDirectory))
+            + Self.inFlightBytes()
+    }
+
+    /// Bytes of any download still streaming into the temp directory.
+    ///
+    /// This is the only place a transfer is observable. `URLSession` writes to
+    /// `CFNetworkDownload_XXXXXX.tmp` and moves the finished file into the
+    /// cache at the end, so the destination stays flat at a megabyte of JSON
+    /// for the entire download and then jumps to 2.3 GB. Measured directly:
+    /// the temp file went 969 MB, 1001 MB, 1076 MB over six seconds while the
+    /// hub directory did not move at all.
+    ///
+    /// The library does expose a `Progress`, and it is sampled every 100 ms,
+    /// but the large file's bytes never reach it on this transport, so it
+    /// reports only the small files and sits at 0% throughout.
+    static func inFlightBytes() -> Int64 {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: tmp, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey])
+        else { return 0 }
+
+        // The largest file written to in the last few seconds, not the sum of
+        // all of them. A cancelled or crashed transfer leaves its temp file
+        // behind, and they accumulate: this machine had 25 GB of abandoned
+        // ones, which summed to 1038% of a 2.4 GB download. Only one transfer
+        // runs at a time, so the newest active file is the whole answer.
+        let cutoff = Date().addingTimeInterval(-10)
+        var largest: Int64 = 0
+        for url in entries where url.lastPathComponent.hasPrefix("CFNetworkDownload") {
+            guard let v = try? url.resourceValues(
+                forKeys: [.fileSizeKey, .contentModificationDateKey]),
+                  let modified = v.contentModificationDate, modified > cutoff
+            else { continue }
+            largest = max(largest, Int64(v.fileSize ?? 0))
+        }
+        return largest
     }
 
     /// Complete enough to skip the download message. The margin covers small

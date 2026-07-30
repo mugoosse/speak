@@ -14,19 +14,7 @@ actor Transcriber {
     private var apple: AnyObject?          // AppleEngine, gated on macOS 26
     private var kind: ModelChoice.Kind = .parakeet
 
-    /// - Parameter onProgress: handed the download's `Progress` object, once.
-    ///
-    ///   Once, not repeatedly: the library invokes its handler a single time,
-    ///   at the start, passing an object it then mutates as bytes arrive. Its
-    ///   children are per-file and weighted by size, and the URLSession
-    ///   delegate updates them with real byte counts. Treating the call as a
-    ///   stream of updates yields exactly one reading, taken before anything
-    ///   has been transferred, which is why this reported 41 KB and 0% for the
-    ///   length of a 2.4 GB download.
-    func load(
-        _ choice: ModelChoice,
-        onProgress: (@MainActor @Sendable (Progress) -> Void)? = nil
-    ) async throws {
+    func load(_ choice: ModelChoice) async throws {
         parakeet = nil                     // drop the old weights before loading
         apple = nil
         kind = choice.kind
@@ -45,7 +33,11 @@ actor Transcriber {
                     cache: .default,
                     repoID: repoID,
                     requiredExtension: "safetensors",
-                    progressHandler: { progress in onProgress?(progress) })
+                    // An empty handler, not nil: the library's default one
+                    // prints a file count to stdout every hundred
+                    // milliseconds. Progress is measured elsewhere, from the
+                    // temp file the transfer actually writes to.
+                    progressHandler: { _ in })
             }
             parakeet = try await STT.loadModel(modelRepo: choice.repo)
             // Warm the compute graph so the first real dictation isn't slow.

@@ -13,8 +13,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var downloadWatch: Timer?
     private var accessibilityWatch: Timer?
     private var loadTask: Task<Void, Never>?
-    /// The live download, sampled by the watch timer. See Transcriber.load.
-    private var downloadProgress: Progress?
+    /// Highest byte count seen for the current download.
+    private var peakDownloadBytes: Int64 = 0
     let updater = Updater()
     private let indicator = RecordingIndicator()
 
@@ -157,7 +157,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func reloadModel() {
         ready = false
-        downloadProgress = nil
+        peakDownloadBytes = 0
         // Switching engines mid-download has to stop the old one, or choosing
         // Apple Intelligence to avoid a 2.4 GB download quietly finishes the
         // 2.4 GB download anyway.
@@ -179,14 +179,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         loadTask = Task {
             do {
-                try await transcriber.load(choice) { [weak self] progress in
-                    // Held, not read once. The watch timer samples it every
-                    // second; this closure fires a single time.
-                    self?.downloadProgress = progress
-                }
+                try await transcriber.load(choice)
                 stopDownloadWatch()
-                downloadProgress = nil
-                ready = true
+                        ready = true
                 setStatus(.ready)
             } catch {
                 // Checked before stopping the watch: by the time a cancelled
@@ -228,22 +223,19 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.setStatus(.loading)
                     return
                 }
-                // The library's Progress, when we have it: it carries real
-                // byte counts from the URLSession delegate. Falling back to
-                // bytes on disk, which only tells the truth at the very end,
-                // because the big weights file is moved into place complete
-                // rather than growing where we can see it.
-                let bytes: Int64
-                let fraction: Double?
-                if let p = self.downloadProgress, p.totalUnitCount > 0 {
-                    bytes = p.completedUnitCount
-                    fraction = min(1.0, p.fractionCompleted)
-                } else {
-                    bytes = choice.bytesOnDisk
-                    fraction = choice.approxBytes > 0
-                        ? min(1.0, Double(bytes) / Double(choice.approxBytes))
-                        : nil
-                }
+                // Bytes on disk plus bytes in flight. See
+                // ModelChoice.inFlightBytes for why the library's own Progress
+                // cannot be used here.
+                // Never let the number go backwards. The in-flight measure
+                // ignores temp files untouched for ten seconds, so a stalled
+                // connection would otherwise report zero and the bar would
+                // snap back to the start, which reads as the download having
+                // failed rather than paused.
+                let bytes = max(choice.bytesOnDisk, self.peakDownloadBytes)
+                self.peakDownloadBytes = bytes
+                let fraction = choice.approxBytes > 0
+                    ? min(1.0, Double(bytes) / Double(choice.approxBytes))
+                    : nil
                 self.setStatus(.downloading(
                     elapsed: Date().timeIntervalSince(started),
                     total: choice.approxBytes,
