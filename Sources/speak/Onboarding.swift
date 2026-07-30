@@ -317,16 +317,18 @@ final class Onboarding: NSObject, NSWindowDelegate {
         v.addArrangedSubview(status(Permissions.microphone,
                                     granted: "Microphone access granted.",
                                     pending: "Waiting for permission…"))
-        // Troubleshooting is hidden until asked for. Presented up front it
-        // reads as a warning that this is likely to go wrong, on a step that
-        // usually takes one click.
-        v.addArrangedSubview(help(expanded: micHelpOpen,
-                                  toggle: #selector(toggleMicHelp)) { inner in
-            inner.addArrangedSubview(self.hint(
-                "If no prompt appears, macOS has remembered an earlier "
-                + "refusal. Open Privacy & Security, then Microphone, and "
-                + "switch Speak on."))
-        })
+        // Troubleshooting is hidden until asked for, and gone entirely once
+        // the permission lands: an offer of help under a green tick is an
+        // invitation to doubt something that already worked.
+        if !Permissions.microphone {
+            v.addArrangedSubview(help(expanded: micHelpOpen,
+                                      toggle: #selector(toggleMicHelp)) { inner in
+                inner.addArrangedSubview(self.hint(
+                    "If no prompt appears, macOS has remembered an earlier "
+                    + "refusal. Open Privacy & Security, then Microphone, and "
+                    + "switch Speak on."))
+            })
+        }
     }
 
     private func buildAccessibility(_ v: NSStackView) {
@@ -337,8 +339,9 @@ final class Onboarding: NSObject, NSWindowDelegate {
                                     granted: "Accessibility access granted.",
                                     pending: "Switch Speak on in the list, then come back."))
 
-        v.addArrangedSubview(help(expanded: axHelpOpen,
-                                  toggle: #selector(toggleAxHelp)) { inner in
+        if !Permissions.accessibility {
+            v.addArrangedSubview(help(expanded: axHelpOpen,
+                                      toggle: #selector(toggleAxHelp)) { inner in
             // The guaranteed remedy, offered rather than described.
             //
             // A granted Accessibility toggle does not always reach a process
@@ -346,17 +349,19 @@ final class Onboarding: NSObject, NSWindowDelegate {
             // cached result, and a TCC entry created against a bundle that has
             // since been replaced no longer matches the app asking. Both look
             // identical from here, and both are cured by starting again.
-            inner.addArrangedSubview(self.hint(
-                "macOS sometimes does not tell a running app that its "
-                + "permission changed, and it keeps a stale entry after an app "
-                + "is replaced."))
-            let relaunch = NSButton(title: "Relaunch Speak",
-                                    target: self, action: #selector(self.relaunchApp))
-            inner.addArrangedSubview(relaunch)
-            inner.addArrangedSubview(self.hint(
-                "Still nothing? In the list, select Speak, remove it with the "
-                + "minus button, then add it again."))
-        })
+                inner.addArrangedSubview(self.hint(
+                    "macOS sometimes does not tell a running app that its "
+                    + "permission changed, and it keeps a stale entry after an "
+                    + "app is replaced."))
+                let relaunch = NSButton(title: "Relaunch Speak",
+                                        target: self,
+                                        action: #selector(self.relaunchApp))
+                inner.addArrangedSubview(relaunch)
+                inner.addArrangedSubview(self.hint(
+                    "Still nothing? In the list, select Speak, remove it with "
+                    + "the minus button, then add it again."))
+            })
+        }
     }
 
     /// A collapsed "Not working?" row that reveals remedies when clicked.
@@ -544,13 +549,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
         tryItField = text
         v.addArrangedSubview(scroll)
 
-        let result = NSTextField(labelWithString: didDictate
-            ? "● That worked. The transcript is on your clipboard too."
-            : "○ Waiting for your first dictation.")
-        result.font = .systemFont(ofSize: 12)
-        result.textColor = didDictate ? .systemGreen : .secondaryLabelColor
-        tryItResult = result
-        v.addArrangedSubview(result)
+        let (resultRow, resultLabel) = statusRow(didDictate, didDictate
+            ? "That worked. The transcript is on your clipboard too."
+            : "Waiting for your first dictation.")
+        tryItResult = resultLabel
+        v.addArrangedSubview(resultRow)
 
         if !didDictate {
             v.addArrangedSubview(hint(
@@ -563,7 +566,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         owner?.onTranscript = { [weak self] transcript in
             guard let self else { return }
             guard let transcript, !transcript.isEmpty else {
-                self.tryItResult?.stringValue = "○ Nothing was heard. Try again, a little louder."
+                self.tryItResult?.stringValue = "Nothing was heard. Try again, a little louder."
                 return
             }
             self.didDictate = true
@@ -571,7 +574,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
                 ? transcript : self.tryItText + " " + transcript
             self.tryItField?.string = self.tryItText
             self.tryItResult?.stringValue =
-                "● That worked. The transcript is on your clipboard too."
+                "That worked. The transcript is on your clipboard too."
             self.tryItResult?.textColor = .systemGreen
             self.updateControls()
         }
