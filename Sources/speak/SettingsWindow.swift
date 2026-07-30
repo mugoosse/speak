@@ -469,17 +469,30 @@ final class ModelPane: Pane {
         box.spacing = 8
 
         switch app?.status {
-        case .downloading(_, let total):
+        case .downloading(_, let total, _, let fraction):
             let f = ByteCountFormatter()
             f.countStyle = .file
-            let spinner = NSProgressIndicator()
-            spinner.style = .spinning
-            spinner.controlSize = .small
-            spinner.startAnimation(nil)
+
+            // Determinate once the first progress callback lands, spinning
+            // before that. A bar stuck at zero is worse than no bar.
+            let bar = NSProgressIndicator()
+            bar.controlSize = .small
+            if let fraction {
+                bar.style = .bar
+                bar.isIndeterminate = false
+                bar.minValue = 0
+                bar.maxValue = 1
+                bar.doubleValue = fraction
+                bar.widthAnchor.constraint(equalToConstant: 220).isActive = true
+            } else {
+                bar.style = .spinning
+                bar.startAnimation(nil)
+            }
 
             let label = NSTextField(labelWithString: app?.status.summary ?? "")
             label.font = .systemFont(ofSize: 12)
-            box.addArrangedSubview(row([spinner, label]))
+            box.addArrangedSubview(fraction == nil ? row([bar, label]) : label)
+            if fraction != nil { box.addArrangedSubview(bar) }
             box.addArrangedSubview(caption(
                 "Downloading \(f.string(fromByteCount: total)) once. You can "
                 + "close this window; it continues in the background."))

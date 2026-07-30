@@ -124,33 +124,62 @@ struct ModelChoice {
 /// What the model is doing, so the UI can say something specific instead of
 /// leaving the user watching a static icon for ten minutes.
 enum ModelStatus {
-    /// No byte count, deliberately.
+    /// `fraction` is nil until the first progress callback arrives, and stays
+    /// nil for the whole download if the library gives us nothing usable.
     ///
-    /// `URLSession.download` streams the weights into a system temp path and
-    /// only moves the finished file into the cache, so nothing observable
-    /// grows while the large file is in flight: a directory-derived percentage
-    /// sits at 0% for the entire download and then jumps to 100%. Elapsed time
-    /// is less informative but true, which beats a progress bar that looks
-    /// stuck.
-    case downloading(elapsed: TimeInterval, total: Int64)
+    /// This used to carry only elapsed time, because `STT.loadModel` performs
+    /// its own download and forwards no progress: `URLSession.download`
+    /// streams into a system temp path and moves the file into the cache only
+    /// once complete, so watching the cache directory gives 0% for ten minutes
+    /// and then 100%. Speak now runs the download itself through
+    /// `ModelUtils.resolveOrDownloadModel`, which does take a progress
+    /// handler, and hands the populated cache to `loadModel` afterwards.
+    /// Elapsed time is kept as a fallback and as reassurance that something is
+    /// still happening.
+    case downloading(elapsed: TimeInterval, total: Int64,
+                     received: Int64?, fraction: Double?)
     case loading
     case ready
     case failed(String)
 
     var isReady: Bool { if case .ready = self { return true }; return false }
 
+    /// True while the engine cannot yet transcribe. Onboarding uses this to
+    /// refuse to advance, so nobody reaches "you're set" with no model.
+    var isBusy: Bool {
+        switch self {
+        case .downloading, .loading: return true
+        case .ready, .failed:        return false
+        }
+    }
+
     var summary: String {
         switch self {
-        case .downloading(let elapsed, let total):
+        case .downloading(let elapsed, let total, let received, let fraction):
             let f = ByteCountFormatter()
             f.countStyle = .file
             f.allowsNonnumericFormatting = false
-            return "downloading model… \(f.string(fromByteCount: total)), "
-                 + "\(Self.duration(elapsed)) so far"
+            guard let fraction, let received else {
+                // Before the first callback lands, say what is coming rather
+                // than showing a percentage we do not have yet.
+                return "downloading model… \(f.string(fromByteCount: total)), "
+                     + "\(Self.duration(elapsed)) so far"
+            }
+            let pct = Int((fraction * 100).rounded())
+            return "downloading model… \(pct)% of "
+                 + "\(f.string(fromByteCount: total)) · "
+                 + "\(f.string(fromByteCount: received)) in "
+                 + "\(Self.duration(elapsed))"
         case .loading:  return "loading model…"
         case .ready:    return "ready"
         case .failed(let why): return why
         }
+    }
+
+    /// 0...1 for a determinate progress bar, nil when indeterminate.
+    var fraction: Double? {
+        if case .downloading(_, _, _, let f) = self { return f }
+        return nil
     }
 
     static func duration(_ t: TimeInterval) -> String {

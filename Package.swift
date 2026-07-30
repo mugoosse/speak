@@ -7,6 +7,10 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", branch: "main"),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.9.4"),
+        // Already present transitively through mlx-audio-swift. Declared
+        // explicitly so we can drive the model download ourselves and get a
+        // progress callback: STT.loadModel does not forward one.
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
     ],
     targets: [
         .executableTarget(
@@ -15,6 +19,7 @@ let package = Package(
                 .product(name: "MLXAudioSTT", package: "mlx-audio-swift"),
                 .product(name: "MLXAudioCore", package: "mlx-audio-swift"),
                 .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "HuggingFace", package: "swift-huggingface"),
             ],
             path: "Sources/speak",
             linkerSettings: [

@@ -12,8 +12,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private var refresh: Timer?
     /// `structuralKey()` when the body was last built. See `structuralKey()`.
     private var renderedKey: String?
-    /// The model step's download line, updated in place between rebuilds.
+    /// The model step's download line and bar, updated in place between
+    /// rebuilds so the radio buttons above them are not replaced under the
+    /// cursor of someone trying to click one.
     private weak var liveStatusLine: NSTextField?
+    private weak var liveProgressBar: NSProgressIndicator?
     private var step = 0
     private var onFinish: (() -> Void)?
 
@@ -26,28 +29,52 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private struct Step {
         let title: String
         let build: (Onboarding, NSStackView) -> Void
-        let canAdvance: () -> Bool
+        /// Takes the window so a step can consult live app state, not
+        /// just global permission checks.
+        let canAdvance: (Onboarding) -> Bool
     }
 
     private var steps: [Step] {
         [
             .init(title: "Welcome to Speak",
                   build: { $0.buildWelcome($1) },
-                  canAdvance: { true }),
+                  canAdvance: { _ in true }),
             .init(title: "Microphone access",
                   build: { $0.buildMic($1) },
-                  canAdvance: { Permissions.microphone }),
+                  canAdvance: { _ in Permissions.microphone }),
             .init(title: "Accessibility access",
                   build: { $0.buildAccessibility($1) },
-                  canAdvance: { Permissions.accessibility }),
+                  canAdvance: { _ in Permissions.accessibility }),
+            // Not `true`. Advancing mid-download landed people on "you're set"
+            // with an engine that could not transcribe anything, and the
+            // shortcut then did nothing for several minutes with no
+            // explanation. The next step dictates for real, so it needs a
+            // working engine anyway.
             .init(title: "Speech model",
                   build: { $0.buildModel($1) },
-                  canAdvance: { true }),
+                  canAdvance: { $0.owner?.status.isReady ?? false }),
+            // Telling someone the shortcut works is not the same as showing
+            // them. This step is the only proof that the permissions, the
+            // event tap, the microphone and the model all line up, and it
+            // catches a broken chord while there is still a window to fix it
+            // in.
+            .init(title: "Try it out",
+                  build: { $0.buildTryIt($1) },
+                  canAdvance: { $0.didDictate }),
             .init(title: "You're set",
                   build: { $0.buildDone($1) },
-                  canAdvance: { true }),
+                  canAdvance: { _ in true }),
         ]
     }
+
+    /// Set once a dictation has actually produced text in this window.
+    private var didDictate = false
+    /// Survives a rebuild. The text view is recreated whenever the body is
+    /// rebuilt, so the transcript has to live outside it or the user's own
+    /// words vanish the moment the step re-renders.
+    private var tryItText = ""
+    private weak var tryItField: NSTextView?
+    private weak var tryItResult: NSTextField?
 
     /// Set by the app so this step can show live download progress.
     weak var owner: App?
@@ -128,8 +155,15 @@ final class Onboarding: NSObject, NSWindowDelegate {
                 if self.renderedKey != self.structuralKey() {
                     self.render()
                 } else {
-                    if let line = self.liveStatusLine, let s = self.owner?.status {
-                        line.stringValue = "○ " + s.summary
+                    if let s = self.owner?.status {
+                        self.liveStatusLine?.stringValue = "○ " + s.summary
+                        if let bar = self.liveProgressBar, let f = s.fraction {
+                            if bar.isIndeterminate {
+                                bar.stopAnimation(nil)
+                                bar.isIndeterminate = false
+                            }
+                            bar.doubleValue = f
+                        }
                     }
                     self.updateControls()
                 }
@@ -203,11 +237,30 @@ final class Onboarding: NSObject, NSWindowDelegate {
         let state = owner?.status ?? ModelStatus.loading
         switch state {
         case .downloading, .loading:
-            // Kept so the timer can tick the elapsed time without rebuilding
-            // the radio buttons above it.
+            // Kept so the timer can tick progress without rebuilding the radio
+            // buttons above it.
             let line = status(false, granted: "", pending: state.summary)
             liveStatusLine = line
             v.addArrangedSubview(line)
+
+            let bar = NSProgressIndicator()
+            bar.controlSize = .small
+            bar.style = .bar
+            bar.minValue = 0
+            bar.maxValue = 1
+            // Indeterminate until the first callback: a determinate bar
+            // sitting at zero reads as stuck.
+            if let fraction = state.fraction {
+                bar.isIndeterminate = false
+                bar.doubleValue = fraction
+            } else {
+                bar.isIndeterminate = true
+                bar.startAnimation(nil)
+            }
+            bar.widthAnchor.constraint(equalToConstant: 380).isActive = true
+            liveProgressBar = bar
+            v.addArrangedSubview(bar)
+
             v.addArrangedSubview(hint(
                 "You can continue and close this window; the download keeps "
                 + "going in the background."))
@@ -232,6 +285,79 @@ final class Onboarding: NSObject, NSWindowDelegate {
     @objc private func retry() {
         owner?.reloadModel()
         render()
+    }
+
+    private func buildTryIt(_ v: NSStackView) {
+        // Arm the tap here rather than at the end of onboarding: without it the
+        // shortcut does nothing on this step and the user concludes the app is
+        // broken at the exact moment they first try it.
+        owner?.installHotkeyIfNeeded()
+
+        v.addArrangedSubview(paragraph(
+            "Press \(Shortcut.description), say a sentence, then press it "
+            + "again. What you said should appear below."))
+
+        let chip = NSTextField(labelWithString: Shortcut.description)
+        chip.font = .monospacedSystemFont(ofSize: 15, weight: .semibold)
+        v.addArrangedSubview(chip)
+
+        let change = NSButton(title: "Use a different shortcut…",
+                              target: self, action: #selector(openShortcutSettings))
+        change.bezelStyle = .inline
+        change.controlSize = .small
+        v.addArrangedSubview(change)
+
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.heightAnchor.constraint(equalToConstant: 84).isActive = true
+        scroll.widthAnchor.constraint(equalToConstant: 470).isActive = true
+
+        let text = NSTextView()
+        text.isEditable = true
+        text.font = .systemFont(ofSize: 13)
+        text.string = tryItText
+        text.textContainerInset = NSSize(width: 6, height: 6)
+        scroll.documentView = text
+        tryItField = text
+        v.addArrangedSubview(scroll)
+
+        let result = NSTextField(labelWithString: didDictate
+            ? "● That worked. The transcript is on your clipboard too."
+            : "○ Waiting for your first dictation.")
+        result.font = .systemFont(ofSize: 12)
+        result.textColor = didDictate ? .systemGreen : .secondaryLabelColor
+        tryItResult = result
+        v.addArrangedSubview(result)
+
+        if !didDictate {
+            v.addArrangedSubview(hint(
+                "Nothing happening? The chord has to be held together and "
+                + "released. If it still does nothing, Accessibility is the "
+                + "usual cause: remove Speak from that list and add it again."))
+        }
+
+        // Route finished transcripts here for as long as this step is shown.
+        owner?.onTranscript = { [weak self] transcript in
+            guard let self else { return }
+            guard let transcript, !transcript.isEmpty else {
+                self.tryItResult?.stringValue = "○ Nothing was heard. Try again, a little louder."
+                return
+            }
+            self.didDictate = true
+            self.tryItText = self.tryItText.isEmpty
+                ? transcript : self.tryItText + " " + transcript
+            self.tryItField?.string = self.tryItText
+            self.tryItResult?.stringValue =
+                "● That worked. The transcript is on your clipboard too."
+            self.tryItResult?.textColor = .systemGreen
+            self.updateControls()
+        }
+    }
+
+    @objc private func openShortcutSettings() {
+        owner?.openSettingsAtShortcut()
     }
 
     private func buildDone(_ v: NSStackView) {
@@ -277,6 +403,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
             body.removeArrangedSubview($0); $0.removeFromSuperview()
         }
         liveStatusLine = nil          // rebuilt by buildModel if this step has one
+        liveProgressBar = nil
+        // Only the try-it step wants transcripts. Leaving it wired up would
+        // keep writing into a text view that is no longer on screen, and
+        // hold this window alive after it closes.
+        owner?.onTranscript = nil
         s.build(self, body)
         renderedKey = structuralKey()
         updateControls()
@@ -289,7 +420,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         let s = steps[step]
         backButton.isHidden = step == 0
         nextButton.title = step == steps.count - 1 ? "Done" : "Continue"
-        nextButton.isEnabled = s.canAdvance()
+        nextButton.isEnabled = s.canAdvance(self)
         pageDots.stringValue = (0..<steps.count)
             .map { $0 == step ? "●" : "○" }.joined(separator: " ")
     }
@@ -320,7 +451,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         case .failed: readiness = "failed"
         default:      readiness = "busy"
         }
-        return "\(step)|\(steps[step].canAdvance())|\(readiness)"
+        return "\(step)|\(steps[step].canAdvance(self))|\(readiness)"
     }
 
     @objc private func next() {

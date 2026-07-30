@@ -12,6 +12,20 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var ready = false
     private var downloadWatch: Timer?
     let updater = Updater()
+    private let indicator = RecordingIndicator()
+
+    /// Called with each finished transcript, nil when nothing was heard.
+    /// Onboarding uses it to prove the shortcut works.
+    var onTranscript: ((String?) -> Void)?
+
+    /// True once the event tap is live, so onboarding can arm it the moment
+    /// Accessibility is granted rather than waiting until the flow finishes.
+    var hotkeyInstalled: Bool { eventTap != nil }
+
+    func installHotkeyIfNeeded() {
+        guard eventTap == nil, Permissions.accessibility else { return }
+        installHotkey()
+    }
 
     /// Latest model state, and a hook so Settings and onboarding can mirror it.
     private(set) var status: ModelStatus = .loading
@@ -78,18 +92,28 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let choice = Settings.envOverride
             .flatMap { ModelChoice.named(repo: $0) } ?? Settings.choice
 
-        // A first run downloads ~2.4 GB. Without progress the app looks hung,
-        // so watch for the files landing: the library offers no callback.
+        // A first run downloads ~2.4 GB. Transcriber drives that download so it
+        // can report real progress; the timer only ticks elapsed time between
+        // callbacks, so the line keeps moving during the gaps.
+        let started = Date()
         if !choice.isDownloaded {
-            setStatus(.downloading(elapsed: 0, total: choice.approxBytes))
-            startDownloadWatch(choice)
+            setStatus(.downloading(elapsed: 0, total: choice.approxBytes,
+                                   received: nil, fraction: nil))
+            startDownloadWatch(choice, started: started)
         } else {
             setStatus(.loading)
         }
 
         Task {
             do {
-                try await transcriber.load(choice)
+                try await transcriber.load(choice) { [weak self] fraction, received in
+                    guard let self, case .downloading = self.status else { return }
+                    self.setStatus(.downloading(
+                        elapsed: Date().timeIntervalSince(started),
+                        total: choice.approxBytes,
+                        received: received,
+                        fraction: fraction))
+                }
                 stopDownloadWatch()
                 ready = true
                 setStatus(.ready)
@@ -101,21 +125,24 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func startDownloadWatch(_ choice: ModelChoice) {
+    /// Keeps the elapsed time honest between progress callbacks, and notices
+    /// when the files have landed and the remaining wait is weight loading.
+    private func startDownloadWatch(_ choice: ModelChoice, started: Date) {
         downloadWatch?.invalidate()
-        let started = Date()
         downloadWatch = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
-                guard let self, case .downloading = self.status else { return }
-                // Once the files have landed the remaining wait is unpacking
-                // and weight loading, which is quick but not instant.
+                guard let self,
+                      case .downloading(_, _, let received, let fraction) = self.status
+                else { return }
                 if choice.isDownloaded {
                     self.setStatus(.loading)
                 } else {
                     self.setStatus(.downloading(
                         elapsed: Date().timeIntervalSince(started),
-                        total: choice.approxBytes))
+                        total: choice.approxBytes,
+                        received: received,
+                        fraction: fraction))
                 }
             }
         }
@@ -247,6 +274,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openSettings() { settings.show() }
+    /// General is the first tab, and the shortcut lives at the top of it.
+    func openSettingsAtShortcut() { settings.show(selecting: 0) }
     /// About is the last tab, so open Settings already showing it.
     @objc private func openAbout() { settings.show(selecting: 4) }
     @objc private func openOnboarding() { startOnboarding() }
@@ -375,10 +404,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func toggle() {
         if recorder.isRecording {
             setIcon("hourglass", "transcribing…")
-            guard let pcm = recorder.stop() else { setIcon("mic", "ready"); return }
+            indicator.show(.transcribing)
+            guard let pcm = recorder.stop() else {
+                setIcon("mic", "ready"); indicator.hide(); return
+            }
             let seconds = Double(pcm.count) / SAMPLE_RATE
             Task {
                 let text = await transcriber.transcribe(pcm)
+                indicator.hide()
                 if let text {
                     let pb = NSPasteboard.general
                     pb.clearContents()
@@ -389,11 +422,20 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 } else {
                     setIcon("mic", "nothing transcribed")
                 }
+                // Onboarding's try-it-out step listens here, so the user sees
+                // their own words rather than being told it worked.
+                onTranscript?(text)
             }
         } else {
             guard ready else { NSSound.beep(); return }
-            do { try recorder.start(); setIcon("record.circle", "recording…") }
-            catch { setIcon("exclamationmark.triangle", "mic error: \(error)") }
+            do {
+                try recorder.start()
+                setIcon("record.circle", "recording…")
+                indicator.show(.recording)
+            } catch {
+                setIcon("exclamationmark.triangle", "mic error: \(error)")
+                indicator.hide()
+            }
         }
     }
 

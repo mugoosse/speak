@@ -1,5 +1,7 @@
 import AppKit
+import HuggingFace
 import MLX
+import MLXAudioCore
 import MLXAudioSTT
 
 /// Fronts whichever speech engine is selected.
@@ -12,13 +14,36 @@ actor Transcriber {
     private var apple: AnyObject?          // AppleEngine, gated on macOS 26
     private var kind: ModelChoice.Kind = .parakeet
 
-    func load(_ choice: ModelChoice) async throws {
+    /// - Parameter onProgress: fraction complete and bytes received, called
+    ///   only while weights are actually being fetched.
+    func load(
+        _ choice: ModelChoice,
+        onProgress: (@MainActor @Sendable (Double, Int64) -> Void)? = nil
+    ) async throws {
         parakeet = nil                     // drop the old weights before loading
         apple = nil
         kind = choice.kind
 
         switch choice.kind {
         case .parakeet:
+            // Fetch the weights ourselves first. `STT.loadModel` downloads on
+            // demand but forwards no progress, so left to itself it produces a
+            // silent multi-minute wait. This writes into exactly the directory
+            // it checks (`<hub cache>/mlx-audio/<repo with _ >`) using the same
+            // required extension Parakeet asks for, so the load below finds a
+            // populated cache and returns without touching the network.
+            if let repoID = Repo.ID(rawValue: choice.repo) {
+                _ = try await ModelUtils.resolveOrDownloadModel(
+                    client: HubClient(cache: .default),
+                    cache: .default,
+                    repoID: repoID,
+                    requiredExtension: "safetensors",
+                    progressHandler: { progress in
+                        guard progress.totalUnitCount > 0 else { return }
+                        onProgress?(progress.fractionCompleted,
+                                    progress.completedUnitCount)
+                    })
+            }
             parakeet = try await STT.loadModel(modelRepo: choice.repo)
             // Warm the compute graph so the first real dictation isn't slow.
             if let m = parakeet {
