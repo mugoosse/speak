@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AboutPane: Pane {
     private static let websiteURL = "https://maxgoespublic.com/"
+    private static let sourceURL = "https://github.com/mugoosse/speak"
 
     override func build() {
         stack.addArrangedSubview(header())
@@ -25,8 +26,17 @@ final class AboutPane: Pane {
 
         stack.addArrangedSubview(separator())
         stack.addArrangedSubview(caption(
-            "Speak is MIT licensed. It has no account, no telemetry, and no "
-            + "network access beyond downloading a model you chose."))
+            "Speak is free software under the AGPL 3.0. It has no account, no "
+            + "telemetry, and no network access beyond downloading a model you "
+            + "chose."))
+
+        // The AGPL is a source-availability licence, so the About box is the
+        // honest place to say where that source is.
+        let source = NSButton(title: Self.sourceURL,
+                              target: self, action: #selector(openSource))
+        source.bezelStyle = .inline
+        source.controlSize = .small
+        stack.addArrangedSubview(source)
     }
 
     /// Icon, name and version, laid out the way an About box usually is.
@@ -95,5 +105,9 @@ final class AboutPane: Pane {
 
     @objc private func openWebsite() {
         if let url = URL(string: Self.websiteURL) { NSWorkspace.shared.open(url) }
+    }
+
+    @objc private func openSource() {
+        if let url = URL(string: Self.sourceURL) { NSWorkspace.shared.open(url) }
     }
 }
