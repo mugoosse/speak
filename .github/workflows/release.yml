@@ -5,8 +5,12 @@ name: Release
 #   echo 1.0.1 > VERSION && git commit -am "1.0.1" && git tag v1.0.1
 #   git push && git push --tags
 #
-# Signing needs four repository secrets. Without them the build still runs and
-# produces artifacts, just unsigned, so a fork can build without any setup:
+# The tag has to agree with VERSION. release.sh refuses to publish otherwise,
+# because a release named v1.0.1 containing Speak-1.0.0.dmg is worse than a
+# failed build.
+#
+# Repository secrets. Without them the build still runs and produces
+# artifacts, just unsigned and unpublished, so a fork can build with no setup:
 #
 #   SIGNING_CERTIFICATE_P12   base64 of a Developer ID Application .p12
 #                             base64 -i cert.p12 | pbcopy
@@ -14,6 +18,9 @@ name: Release
 #   NOTARY_APPLE_ID           Apple ID email
 #   NOTARY_TEAM_ID            10-character team identifier
 #   NOTARY_PASSWORD           app-specific password from appleid.apple.com
+#   SPARKLE_PRIVATE_KEY       EdDSA key from Sparkle's generate_keys -x
+#
+# See RELEASING.md for how to produce each one.
 
 on:
   push:
@@ -22,12 +29,25 @@ on:
 
 permissions:
   contents: write
+  id-token: write        # provenance attestation signs with a workflow identity
+  attestations: write
+  actions: write         # dispatching the Homebrew tap workflow
 
 jobs:
   release:
     # Apple Silicon runner: the build is arm64-only and Metal needs real
     # hardware, not a cross-compile.
     runs-on: macos-15
+
+    # `secrets` is not an available context in a step-level `if`, so every
+    # "do we have this credential" test is resolved once here, at job level,
+    # where it is available. Writing `if: secrets.FOO != ''` on a step looks
+    # like it works and silently never runs.
+    env:
+      HAS_CERT: ${{ secrets.SIGNING_CERTIFICATE_P12 != '' }}
+      HAS_NOTARY: ${{ secrets.NOTARY_APPLE_ID != '' }}
+      HAS_SPARKLE: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+      HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +72,6 @@ jobs:
       - name: Import signing certificate
         if: env.HAS_CERT == 'true'
         env:
-          HAS_CERT: ${{ secrets.SIGNING_CERTIFICATE_P12 != '' }}
           CERT_P12: ${{ secrets.SIGNING_CERTIFICATE_P12 }}
           CERT_PWD: ${{ secrets.SIGNING_CERTIFICATE_PWD }}
         run: |
@@ -72,27 +91,50 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12"
 
       - name: Store notarization credentials
-        if: ${{ secrets.NOTARY_APPLE_ID != '' }}
+        if: env.HAS_NOTARY == 'true'
         run: |
           xcrun notarytool store-credentials speak-notary \
             --apple-id "${{ secrets.NOTARY_APPLE_ID }}" \
             --team-id "${{ secrets.NOTARY_TEAM_ID }}" \
             --password "${{ secrets.NOTARY_PASSWORD }}"
 
-      - name: Build and package
-        run: ./release.sh
+      - name: Write Sparkle signing key
+        if: env.HAS_SPARKLE == 'true'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Sparkle signs the appcast with this. Without it the feed is
+          # unsigned and every client refuses the update, which is the point:
+          # an unsigned update channel is an arbitrary-code-execution channel.
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_key"
+          chmod 600 "$RUNNER_TEMP/sparkle_key"
+          echo "SPARKLE_PRIVATE_KEY_FILE=$RUNNER_TEMP/sparkle_key" >> "$GITHUB_ENV"
 
-      - name: Publish release
+      # One code path for local and CI releases. release.sh validates the tag
+      # against VERSION, refuses to publish anything Gatekeeper would block,
+      # and creates the release as a draft until every asset has uploaded.
+      - name: Build, notarize and publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION=$(tr -d ' \n' < VERSION)
-          gh release create "${GITHUB_REF_NAME}" \
-            "dist/Speak-$VERSION.zip" "dist/Speak-$VERSION.dmg" \
-            --title "Speak $VERSION" \
-            --notes-file RELEASE_NOTES.md \
-          || gh release upload "${GITHUB_REF_NAME}" \
-            "dist/Speak-$VERSION.zip" "dist/Speak-$VERSION.dmg" --clobber
+        run: ./release.sh --publish
 
-      - name: Report checksums
-        run: shasum -a 256 dist/*.zip dist/*.dmg
+      - name: Remove Sparkle signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sparkle_key"
+
+      # Records that these exact bytes were produced by this workflow from this
+      # commit. Anyone can check with:
+      #   gh attestation verify Speak-1.0.0.dmg --repo mugoosse/speak
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-checksums: dist/SHA256SUMS.txt
+
+      # The cask needs the sha256 of the DMG, which cannot exist until the DMG
+      # does. Dispatched rather than inlined so a tap failure does not mark a
+      # successful release as failed.
+      - name: Update the Homebrew cask
+        if: env.HAS_TAP_TOKEN == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run homebrew-tap.yml -f tag="${GITHUB_REF_NAME}"
