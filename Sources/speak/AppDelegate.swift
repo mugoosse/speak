@@ -337,12 +337,13 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 // Bytes on disk plus bytes in flight. See
                 // ModelChoice.inFlightBytes for why the library's own Progress
                 // cannot be used here.
-                // Never let the number go backwards. The in-flight measure
-                // ignores temp files untouched for ten seconds, so a stalled
-                // connection would otherwise report zero and the bar would
-                // snap back to the start, which reads as the download having
-                // failed rather than paused.
-                let bytes = max(choice.bytesOnDisk, self.peakDownloadBytes)
+                // Hold the last real reading through a stall rather than
+                // taking a running maximum. A maximum sounds equivalent and is
+                // not: seeded with a stale value it can never come down, which
+                // is how an abandoned 1.42 GB temp file froze the display for
+                // the rest of the download.
+                var bytes = choice.bytesOnDisk
+                if bytes == 0 { bytes = self.peakDownloadBytes }
                 self.peakDownloadBytes = bytes
                 let fraction = choice.approxBytes > 0
                     ? min(1.0, Double(bytes) / Double(choice.approxBytes))

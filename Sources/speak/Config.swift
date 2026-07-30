@@ -130,21 +130,27 @@ struct ModelChoice {
             at: tmp, includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey])
         else { return 0 }
 
-        // The largest file written to in the last few seconds, not the sum of
-        // all of them. A cancelled or crashed transfer leaves its temp file
-        // behind, and they accumulate: this machine had 25 GB of abandoned
-        // ones, which summed to 1038% of a 2.4 GB download. Only one transfer
-        // runs at a time, so the newest active file is the whole answer.
+        // The most recently written file, not the largest.
+        //
+        // Cancelling a download leaves its temp file behind at whatever size it
+        // reached, and picking the largest recent one latched onto exactly
+        // that: switching to Apple Intelligence at 58% and back again pinned
+        // the display to 1.42 GB while the real transfer climbed from zero
+        // underneath it, invisible until it passed the abandoned file. The
+        // active download is the one being written, so mtime identifies it and
+        // size does not.
         let cutoff = Date().addingTimeInterval(-10)
-        var largest: Int64 = 0
+        var newest: Date = cutoff
+        var bytes: Int64 = 0
         for url in entries where url.lastPathComponent.hasPrefix("CFNetworkDownload") {
             guard let v = try? url.resourceValues(
                 forKeys: [.fileSizeKey, .contentModificationDateKey]),
-                  let modified = v.contentModificationDate, modified > cutoff
+                  let modified = v.contentModificationDate, modified > newest
             else { continue }
-            largest = max(largest, Int64(v.fileSize ?? 0))
+            newest = modified
+            bytes = Int64(v.fileSize ?? 0)
         }
-        return largest
+        return bytes
     }
 
     /// Complete enough to skip the download message. The margin covers small
