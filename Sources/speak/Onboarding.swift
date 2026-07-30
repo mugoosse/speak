@@ -267,12 +267,17 @@ final class Onboarding: NSObject, NSWindowDelegate {
         d.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(d)
 
+        // Pulls the container as short as its children allow. Without a
+        // low-priority zero height there is nothing telling Auto Layout to
+        // prefer the smallest fitting size.
+        let squeeze = box.heightAnchor.constraint(equalToConstant: 0)
+        squeeze.priority = .defaultLow
+
         NSLayoutConstraint.activate([
             tile.leadingAnchor.constraint(equalTo: box.leadingAnchor),
             tile.topAnchor.constraint(equalTo: box.topAnchor),
             tile.widthAnchor.constraint(equalToConstant: 52),
             tile.heightAnchor.constraint(equalToConstant: 52),
-            tile.bottomAnchor.constraint(lessThanOrEqualTo: box.bottomAnchor),
 
             icon.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
             icon.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
@@ -286,7 +291,13 @@ final class Onboarding: NSObject, NSWindowDelegate {
             d.leadingAnchor.constraint(equalTo: t.leadingAnchor),
             d.topAnchor.constraint(equalTo: t.bottomAnchor, constant: 3),
             d.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
-            d.bottomAnchor.constraint(lessThanOrEqualTo: box.bottomAnchor),
+            // The row is exactly as tall as its tallest child. Both of these
+            // were lessThanOrEqualTo, which pins nothing: the container's
+            // height was ambiguous, so the first row silently absorbed all the
+            // stack's slack and opened a hole the size of a paragraph.
+            box.bottomAnchor.constraint(greaterThanOrEqualTo: tile.bottomAnchor),
+            box.bottomAnchor.constraint(greaterThanOrEqualTo: d.bottomAnchor),
+            squeeze,
         ])
 
         box.setAccessibilityLabel("\(title). \(detail)")
