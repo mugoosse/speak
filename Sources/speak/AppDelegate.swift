@@ -15,6 +15,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var loadTask: Task<Void, Never>?
     /// Highest byte count seen for the current download.
     private var peakDownloadBytes: Int64 = 0
+    /// The download line in the menu bar menu, so it can be updated
+    /// while the menu is on screen.
+    private weak var statusMenuItem: NSMenuItem?
     let updater = Updater()
     private let indicator = RecordingIndicator()
 
@@ -103,15 +106,41 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             setStatus(.idle)
         }
 
+        var onboardingShown = false
         if Permissions.allGranted {
             installHotkey()
             Settings.onboarded = true
         } else if !Settings.onboarded {
             startOnboarding()
+            onboardingShown = true
         } else {
             setIcon("exclamationmark.triangle", "permissions needed")
         }
         refreshMenu()
+
+        // A launch the user asked for has to show something. Onboarding is that
+        // something on a first run; every other time it is the menu, matching
+        // what a relaunch already does. Deferred by one turn of the run loop
+        // because the menu runs a modal tracking loop, and running it inside
+        // the launch handler holds up the reply to the launch Apple Event.
+        if !onboardingShown, !launchedAtLogin {
+            DispatchQueue.main.async { self.showMenu() }
+        }
+    }
+
+    /// True when launchd started us at login rather than a person opening us.
+    ///
+    /// The launch Apple Event is the only thing that distinguishes the two.
+    /// Both arrive from launchd with identical environments (`XPC_SERVICE_NAME`
+    /// looks the same either way), and neither activates an `LSUIElement` app,
+    /// so process ancestry, start time and frontmost-ness all fail to separate
+    /// them. Without this, start-at-login would drop a menu over whatever the
+    /// user was looking at, every login.
+    private var launchedAtLogin: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              event.eventID == AEEventID(kAEOpenApplication) else { return false }
+        return event.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?
+            .enumCodeValue == OSType(keyAELaunchedAsLogInItem)
     }
 
     /// Opening Speak again, from Spotlight or the Finder, drops the menu down.
@@ -215,7 +244,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// measure even though mlx-audio's own copy is not.
     private func startDownloadWatch(_ choice: ModelChoice, started: Date) {
         downloadWatch?.invalidate()
-        downloadWatch = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+        // .common, not the default mode. An open menu puts the run loop into
+        // event tracking, and a timer scheduled the usual way stops firing for
+        // exactly as long as the user is looking at the thing it updates.
+        let timer = Timer(timeInterval: 1.0, repeats: true) {
             [weak self] _ in
             Task { @MainActor in
                 guard let self, case .downloading = self.status else { return }
@@ -243,6 +275,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     fraction: fraction))
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        downloadWatch = timer
     }
 
     private func stopDownloadWatch() {
@@ -252,6 +286,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setStatus(_ s: ModelStatus) {
         status = s
+        // refreshMenu only runs on menuWillOpen, so a menu that is already
+        // open would show whatever it said when it appeared. Setting the
+        // title directly is the only thing that reaches it.
+        if s.isBusy {
+            statusMenuItem?.title = s.summary.prefix(1).uppercased() + s.summary.dropFirst()
+        }
         switch s {
         case .idle:        setIcon("mic.slash", s.summary)
         case .downloading: setIcon("arrow.down.circle", s.summary)
@@ -289,6 +329,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   + status.summary.dropFirst(),
                                   action: nil, keyEquivalent: "")
             item.image = symbol("arrow.down.circle")
+            statusMenuItem = item          // updated in place while showing
             menu.addItem(item)
             let note = NSMenuItem(title: "Dictation starts once this finishes",
                                   action: nil, keyEquivalent: "")
