@@ -93,6 +93,8 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private var tryItText = ""
     private weak var tryItField: NSTextView?
     private weak var tryItResult: NSTextField?
+    private var micHelpOpen = false
+    private var axHelpOpen = false
 
     /// Set by the app so this step can show live download progress.
     weak var owner: App?
@@ -312,47 +314,86 @@ final class Onboarding: NSObject, NSWindowDelegate {
 
     private func buildMic(_ v: NSStackView) {
         v.addArrangedSubview(paragraph("Speak needs the microphone to hear you."))
-        let b = NSButton(title: "Request access", target: self, action: #selector(requestMic))
-        v.addArrangedSubview(b)
         v.addArrangedSubview(status(Permissions.microphone,
                                     granted: "Microphone access granted.",
-                                    pending: "Not granted yet."))
-        if !Permissions.microphone {
-            v.addArrangedSubview(hint(
-                "If no prompt appears, macOS has remembered an earlier refusal. "
-                + "Open Privacy & Security > Microphone and switch Speak on."))
-        }
+                                    pending: "Waiting for permission…"))
+        // Troubleshooting is hidden until asked for. Presented up front it
+        // reads as a warning that this is likely to go wrong, on a step that
+        // usually takes one click.
+        v.addArrangedSubview(help(expanded: micHelpOpen,
+                                  toggle: #selector(toggleMicHelp)) { inner in
+            inner.addArrangedSubview(self.hint(
+                "If no prompt appears, macOS has remembered an earlier "
+                + "refusal. Open Privacy & Security, then Microphone, and "
+                + "switch Speak on."))
+        })
     }
 
     private func buildAccessibility(_ v: NSStackView) {
         v.addArrangedSubview(paragraph(
             "The shortcut is a chord of modifier keys, which macOS only "
             + "delivers to apps trusted for Accessibility."))
-        let b = NSButton(title: "Open Privacy & Security",
-                         target: self, action: #selector(openAccessibility))
-        v.addArrangedSubview(b)
         v.addArrangedSubview(status(Permissions.accessibility,
                                     granted: "Accessibility access granted.",
                                     pending: "Switch Speak on in the list, then come back."))
-        if !Permissions.accessibility {
+
+        v.addArrangedSubview(help(expanded: axHelpOpen,
+                                  toggle: #selector(toggleAxHelp)) { inner in
             // The guaranteed remedy, offered rather than described.
             //
             // A granted Accessibility toggle does not always reach a process
             // that is already running: the trust check can answer from a
             // cached result, and a TCC entry created against a bundle that has
             // since been replaced no longer matches the app asking. Both look
-            // identical from here, the switch is on and Speak still cannot see
-            // it, and both are cured by starting the process again.
-            let relaunch = NSButton(title: "Switched it on but nothing changed? Relaunch Speak",
-                                    target: self, action: #selector(relaunchApp))
-            relaunch.bezelStyle = .rounded
-            v.addArrangedSubview(relaunch)
-            v.addArrangedSubview(hint(
-                "Already listed but still not working? Select Speak, remove it "
-                + "with the minus button, then add it again. macOS keeps a "
-                + "stale entry after an app is replaced."))
-        }
+            // identical from here, and both are cured by starting again.
+            inner.addArrangedSubview(self.hint(
+                "macOS sometimes does not tell a running app that its "
+                + "permission changed, and it keeps a stale entry after an app "
+                + "is replaced."))
+            let relaunch = NSButton(title: "Relaunch Speak",
+                                    target: self, action: #selector(self.relaunchApp))
+            inner.addArrangedSubview(relaunch)
+            inner.addArrangedSubview(self.hint(
+                "Still nothing? In the list, select Speak, remove it with the "
+                + "minus button, then add it again."))
+        })
     }
+
+    /// A collapsed "Not working?" row that reveals remedies when clicked.
+    ///
+    /// Every one of these steps succeeds on the first try for most people.
+    /// Showing three paragraphs of recovery advice to all of them, permanently,
+    /// buys nothing and makes a two-click step look precarious.
+    private func help(expanded: Bool, toggle: Selector,
+                      _ build: (NSStackView) -> Void) -> NSView {
+        let column = NSStackView()
+        column.orientation = .vertical
+        column.alignment = .leading
+        column.spacing = 10
+
+        let disclose = NSButton(
+            title: (expanded ? "▾  " : "▸  ") + "Not working?",
+            target: self, action: toggle)
+        disclose.bezelStyle = .inline
+        disclose.controlSize = .small
+        disclose.setAccessibilityLabel(
+            expanded ? "Hide troubleshooting" : "Show troubleshooting")
+        column.addArrangedSubview(disclose)
+
+        if expanded {
+            let inner = NSStackView()
+            inner.orientation = .vertical
+            inner.alignment = .leading
+            inner.spacing = 10
+            inner.edgeInsets = NSEdgeInsets(top: 0, left: 14, bottom: 0, right: 0)
+            build(inner)
+            column.addArrangedSubview(inner)
+        }
+        return column
+    }
+
+    @objc private func toggleMicHelp() { micHelpOpen.toggle(); render() }
+    @objc private func toggleAxHelp() { axHelpOpen.toggle(); render() }
 
     private func buildShortcut(_ v: NSStackView) {
         v.addArrangedSubview(paragraph(
