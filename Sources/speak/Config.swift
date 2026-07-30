@@ -136,6 +136,12 @@ enum ModelStatus {
     /// handler, and hands the populated cache to `loadModel` afterwards.
     /// Elapsed time is kept as a fallback and as reassurance that something is
     /// still happening.
+    /// Nothing has been asked for yet. Only reachable on a first run, before
+    /// the user has been told a 2.4 GB download is coming: starting it at
+    /// launch would pull that much of somebody's bandwidth before they had
+    /// seen a single word of explanation, and before they had the chance to
+    /// pick the engine that needs no download at all.
+    case idle
     case downloading(elapsed: TimeInterval, total: Int64,
                      received: Int64?, fraction: Double?)
     case loading
@@ -148,8 +154,8 @@ enum ModelStatus {
     /// refuse to advance, so nobody reaches "you're set" with no model.
     var isBusy: Bool {
         switch self {
-        case .downloading, .loading: return true
-        case .ready, .failed:        return false
+        case .downloading, .loading:  return true
+        case .idle, .ready, .failed:  return false
         }
     }
 
@@ -170,6 +176,7 @@ enum ModelStatus {
                  + "\(f.string(fromByteCount: total)) · "
                  + "\(f.string(fromByteCount: received)) in "
                  + "\(Self.duration(elapsed))"
+        case .idle:     return "waiting to set up"
         case .loading:  return "loading model…"
         case .ready:    return "ready"
         case .failed(let why): return why

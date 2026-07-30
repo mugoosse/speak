@@ -221,7 +221,13 @@ final class Onboarding: NSObject, NSWindowDelegate {
             "No account, no subscription, no telemetry."))
         v.addArrangedSubview(hint(
             "Setup takes a minute: two permissions, a shortcut, and one "
-            + "speech model. You can stop and come back."))
+            + "speech model. You can stop and come back."
+            + (ModelChoice.appleAvailable
+               ? "\n\nContinuing starts a 2.4 GB download for the speech "
+                 + "model. Apple Intelligence needs none if you would rather "
+                 + "not, and you can choose it in a moment."
+               : "\n\nContinuing starts a 2.4 GB download for the speech "
+                 + "model.")))
     }
 
     /// An icon in a tile, a claim, and the evidence for it.
@@ -377,6 +383,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
 
         let state = owner?.status ?? ModelStatus.loading
         switch state {
+        case .idle:
+            // Only reachable by going Back to this step before the download
+            // has been kicked off, which the Continue on Welcome does.
+            v.addArrangedSubview(status(false, granted: "",
+                                        pending: "Download starts when you continue."))
         case .downloading, .loading:
             // Kept so the timer can tick progress without rebuilding the radio
             // buttons above it.
@@ -657,6 +668,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
         }
         step += 1
         Settings.onboardingStep = step
+        // Leaving Welcome is the consent: the step said a 2.4 GB download was
+        // coming, and pressing Continue is the user agreeing to it. Starting
+        // here rather than at the model step keeps the download overlapping
+        // the permission steps, so it is usually done on arrival.
+        if step == 1 { owner?.startModelLoadIfIdle() }
         render()
     }
 

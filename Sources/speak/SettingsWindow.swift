@@ -535,6 +535,10 @@ final class ModelPane: Pane {
         box.spacing = 8
 
         switch app?.status {
+        case .idle:
+            let label = NSTextField(labelWithString: "Setup has not finished yet.")
+            label.font = .systemFont(ofSize: 12)
+            box.addArrangedSubview(label)
         case .downloading(_, let total, _, let fraction):
             let f = ByteCountFormatter()
             f.countStyle = .file

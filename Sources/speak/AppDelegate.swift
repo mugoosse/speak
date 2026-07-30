@@ -12,6 +12,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var ready = false
     private var downloadWatch: Timer?
     private var accessibilityWatch: Timer?
+    private var loadTask: Task<Void, Never>?
     let updater = Updater()
     private let indicator = RecordingIndicator()
 
@@ -90,7 +91,15 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // never use startup to override a later choice by the user.
         LoginItem.applyDefaultIfNeeded(isNewInstallation: !Settings.onboarded)
 
-        reloadModel()
+        // Not on a first run. Loading here would start a 2.4 GB download
+        // before the user has read a word about it, and before they have had
+        // the chance to choose Apple Intelligence, which needs no download at
+        // all. Onboarding starts it once they continue past the welcome step.
+        if Settings.onboarded {
+            reloadModel()
+        } else {
+            setStatus(.idle)
+        }
 
         if Permissions.allGranted {
             installHotkey()
@@ -137,8 +146,19 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Model
 
+    /// Begin loading if nothing has been asked for yet. Called when onboarding
+    /// leaves the welcome step, so the download overlaps the permission steps
+    /// instead of making the user wait afterwards.
+    func startModelLoadIfIdle() {
+        if case .idle = status { reloadModel() }
+    }
+
     func reloadModel() {
         ready = false
+        // Switching engines mid-download has to stop the old one, or choosing
+        // Apple Intelligence to avoid a 2.4 GB download quietly finishes the
+        // 2.4 GB download anyway.
+        loadTask?.cancel()
         let choice = Settings.envOverride
             .flatMap { ModelChoice.named(repo: $0) } ?? Settings.choice
 
@@ -154,7 +174,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             setStatus(.loading)
         }
 
-        Task {
+        loadTask = Task {
             do {
                 try await transcriber.load(choice) { [weak self] fraction, received in
                     guard let self, case .downloading = self.status else { return }
@@ -169,6 +189,13 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 setStatus(.ready)
             } catch {
                 stopDownloadWatch()
+                // A cancelled load is a deliberate switch to another engine,
+                // not a failure. Reporting it as one would put a red error on
+                // the step at the exact moment the user did the right thing.
+                if Task.isCancelled || error is CancellationError {
+                    log("model load cancelled")
+                    return
+                }
                 setStatus(.failed(ModelStatus.describe(error)))
                 log("model load failed: \(error)")
             }
@@ -206,6 +233,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setStatus(_ s: ModelStatus) {
         status = s
         switch s {
+        case .idle:        setIcon("mic.slash", s.summary)
         case .downloading: setIcon("arrow.down.circle", s.summary)
         case .loading:     setIcon("mic.slash", s.summary)
         case .ready:       setIcon("mic", s.summary)
@@ -230,6 +258,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   action: nil, keyEquivalent: "")
             hint.image = symbol("keyboard")
             menu.addItem(hint)
+        case .idle:
+            let item = NSMenuItem(title: "Finish setup to start dictating",
+                                  action: #selector(openOnboarding), keyEquivalent: "")
+            item.target = self
+            item.image = symbol("arrow.down.circle")
+            menu.addItem(item)
         case .downloading, .loading:
             let item = NSMenuItem(title: status.summary.prefix(1).uppercased()
                                   + status.summary.dropFirst(),
