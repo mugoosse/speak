@@ -222,6 +222,50 @@ Any certificate works, including the free Apple Development one Xcode installs
 when you add an Apple ID. Without one it falls back to ad-hoc and prints a
 warning explaining the consequence.
 
+## Uninstalling
+
+Quit Speak from the menu bar, then drag **Speak** from Applications to the
+Trash. Or:
+
+```sh
+brew uninstall --cask speak
+```
+
+That is genuinely all most people need. It leaves three small things behind.
+
+**Remove the permission entries.** System Settings → Privacy & Security →
+**Accessibility**, select Speak, click **−**. Same under **Microphone**.
+
+This is the one worth doing. macOS keeps the entry after the app is gone, and a
+stale entry is the single most common reason a reinstalled Speak looks
+installed but the shortcut does nothing. Removing it now saves confusion later.
+
+**Delete the settings and history**, if you would rather not leave transcripts
+on disk:
+
+```sh
+rm -rf ~/Library/Application\ Support/speak        # transcript history
+rm -f  ~/Library/Preferences/com.mgo.speak.plist   # settings and shortcut
+rm -rf ~/Library/Caches/com.mgo.speak              # update cache
+```
+
+`brew uninstall --zap --cask speak` does the same three in one step.
+
+**Delete the model**, if you want the 4.6 GB back. It lives in the shared
+Hugging Face cache, so delete the two Parakeet directories rather than the
+cache itself, which probably holds other things:
+
+```sh
+rm -rf ~/.cache/huggingface/hub/models--mlx-community--parakeet-tdt-0.6b-v*
+rm -rf ~/.cache/huggingface/hub/mlx-audio/mlx-community_parakeet-tdt-0.6b-v*
+```
+
+Both paths are the same model stored twice; see [Disk use](#disk-use). Apple
+Intelligence leaves nothing behind, as its assets belong to macOS.
+
+Finally, if you added Speak to Login Items, remove it there too: System
+Settings → General → Login Items.
+
 ## Config
 
 Environment variables override the UI, for one-off runs:
