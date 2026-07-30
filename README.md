@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="110" alt="Speak" src="Assets/icon.png" />
+</p>
+
 # Speak
 
 Push-to-talk dictation for macOS. Press a shortcut, talk, press it again. The
@@ -242,7 +246,7 @@ Only needed to develop Speak; the releases above are prebuilt.
 ./build.sh      # xcodebuild wrapper
 ./make_app.sh   # wrap the binary in a signed .app
 ./install.sh    # both, then install to /Applications and relaunch
-swift make_icon.swift   # regenerate Assets/Speak.icns
+swift make_icon.swift   # regenerate Assets/icon.png and Assets/Speak.icns
 ```
 
 `swift build` alone is **not** enough. It links successfully and then dies at
