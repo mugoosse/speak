@@ -108,7 +108,13 @@ final class Onboarding: NSObject, NSWindowDelegate {
         let w = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "Speak Setup"
+        // No title text. Every step already carries a large heading saying
+        // exactly where you are, so a title bar repeating "Speak Setup" above
+        // "Welcome to Speak" says the same thing twice and makes the window
+        // feel like a utility rather than a first impression. The transparent
+        // bar lets the content run to the top edge.
+        w.title = ""
+        w.titlebarAppearsTransparent = true
         w.center()
         w.delegate = self
         w.isReleasedWhenClosed = false
@@ -219,34 +225,57 @@ final class Onboarding: NSObject, NSWindowDelegate {
     }
 
     /// An icon, a claim, and the evidence for it.
+    ///
+    /// Laid out with explicit constraints rather than nested stack views. SF
+    /// Symbols have different intrinsic widths and heights, so putting each in
+    /// a stack simply centres it in its own box: the glyphs end up with ragged
+    /// left edges and none of them sit level with the text they label. A fixed
+    /// column plus a centre-Y tie to the title line is what makes them read as
+    /// a column.
     private func bullet(_ symbol: String, _ title: String, _ detail: String) -> NSView {
-        let row = NSStackView()
-        row.orientation = .horizontal
-        row.alignment = .top
-        row.spacing = 12
+        let box = NSView()
 
-        let icon = NSImageView(image: NSImage(
-            systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage())
+        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        let image = (NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            ?? NSImage()).withSymbolConfiguration(config)
+        let icon = NSImageView(image: image ?? NSImage())
         icon.contentTintColor = .controlAccentColor
+        icon.imageScaling = .scaleNone       // the configuration already sized it
+        icon.imageAlignment = .alignCenter
         icon.translatesAutoresizingMaskIntoConstraints = false
-        icon.widthAnchor.constraint(equalToConstant: 20).isActive = true
-        row.addArrangedSubview(icon)
+        box.addSubview(icon)
 
-        let text = NSStackView()
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 2
         let t = NSTextField(labelWithString: title)
         t.font = .systemFont(ofSize: 13, weight: .semibold)
-        text.addArrangedSubview(t)
-        let d = NSTextField(labelWithString: detail)
+        t.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(t)
+
+        let d = NSTextField(wrappingLabelWithString: detail)
         d.font = .systemFont(ofSize: 12)
         d.textColor = .secondaryLabelColor
-        text.addArrangedSubview(d)
-        row.addArrangedSubview(text)
+        d.preferredMaxLayoutWidth = 420
+        d.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(d)
 
-        row.setAccessibilityLabel("\(title). \(detail)")
-        return row
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 22),
+            // Level with the title, not with the top of the whole row: the
+            // second line of text must not drag the glyph downwards.
+            icon.centerYAnchor.constraint(equalTo: t.centerYAnchor),
+
+            t.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
+            t.topAnchor.constraint(equalTo: box.topAnchor),
+            t.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
+
+            d.leadingAnchor.constraint(equalTo: t.leadingAnchor),
+            d.topAnchor.constraint(equalTo: t.bottomAnchor, constant: 2),
+            d.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
+            d.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+        ])
+
+        box.setAccessibilityLabel("\(title). \(detail)")
+        return box
     }
 
     private func buildMic(_ v: NSStackView) {
