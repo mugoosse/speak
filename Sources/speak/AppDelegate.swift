@@ -11,6 +11,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var comboLatched = false
     private var ready = false
     private var downloadWatch: Timer?
+    let updater = Updater()
 
     /// Latest model state, and a hook so Settings and onboarding can mirror it.
     private(set) var status: ModelStatus = .loading
@@ -203,6 +204,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         prefs.target = self
         prefs.image = symbol("gearshape")
         menu.addItem(prefs)
+
+        let update = NSMenuItem(title: "Check for Updates…",
+                                action: #selector(Updater.checkForUpdates(_:)),
+                                keyEquivalent: "")
+        update.target = updater
+        update.isEnabled = updater.canCheck
+        update.image = symbol("arrow.triangle.2.circlepath")
+        menu.addItem(update)
 
         let about = NSMenuItem(title: "About Speak", action: #selector(openAbout),
                                keyEquivalent: "")
