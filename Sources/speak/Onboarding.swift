@@ -106,7 +106,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         }
 
         let w = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 660, height: 540),
             styleMask: [.titled, .closable], backing: .buffered, defer: false)
         // No title text. Every step already carries a large heading saying
         // exactly where you are, so a title bar repeating "Speak Setup" above
@@ -126,17 +126,17 @@ final class Onboarding: NSObject, NSWindowDelegate {
         let root = NSStackView()
         root.orientation = .vertical
         root.alignment = .leading
-        root.spacing = 14
-        root.edgeInsets = NSEdgeInsets(top: 26, left: 30, bottom: 22, right: 30)
+        root.spacing = 22
+        root.edgeInsets = NSEdgeInsets(top: 34, left: 42, bottom: 26, right: 42)
 
         titleLabel = NSTextField(labelWithString: "")
-        titleLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        titleLabel.font = .systemFont(ofSize: 30, weight: .bold)
         root.addArrangedSubview(titleLabel)
 
         body = NSStackView()
         body.orientation = .vertical
         body.alignment = .leading
-        body.spacing = 12
+        body.spacing = 20
         root.addArrangedSubview(body)
 
         root.addArrangedSubview(NSView())        // spacer pushes controls down
@@ -165,7 +165,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
 
         root.addArrangedSubview(controls)
         controls.widthAnchor.constraint(equalTo: root.widthAnchor,
-                                        constant: -60).isActive = true
+                                        constant: -84).isActive = true
 
         w.contentView = root
         window = w
@@ -224,54 +224,69 @@ final class Onboarding: NSObject, NSWindowDelegate {
             + "speech model. You can stop and come back."))
     }
 
-    /// An icon, a claim, and the evidence for it.
+    /// An icon in a tile, a claim, and the evidence for it.
     ///
-    /// Laid out with explicit constraints rather than nested stack views. SF
-    /// Symbols have different intrinsic widths and heights, so putting each in
-    /// a stack simply centres it in its own box: the glyphs end up with ragged
-    /// left edges and none of them sit level with the text they label. A fixed
-    /// column plus a centre-Y tie to the title line is what makes them read as
-    /// a column.
+    /// The tile is what makes three symbols of different widths read as a
+    /// column: a bare glyph aligns either by its left edge or its centre, and
+    /// neither looks deliberate when the shapes differ as much as a bolt and a
+    /// lock. A uniform rounded square gives every row the same visual weight
+    /// and the same left edge, and the glyph can then be centred inside it
+    /// where it belongs.
     private func bullet(_ symbol: String, _ title: String, _ detail: String) -> NSView {
         let box = NSView()
 
-        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        let tile = NSView()
+        tile.wantsLayer = true
+        tile.layer?.cornerRadius = 14
+        tile.layer?.cornerCurve = .continuous
+        // Derived from labelColor rather than a fixed grey, so the tile stays
+        // subtle in both light and dark appearance without a second palette.
+        tile.layer?.backgroundColor = NSColor.labelColor
+            .withAlphaComponent(0.09).cgColor
+        tile.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(tile)
+
+        let config = NSImage.SymbolConfiguration(pointSize: 22, weight: .semibold)
         let image = (NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             ?? NSImage()).withSymbolConfiguration(config)
         let icon = NSImageView(image: image ?? NSImage())
         icon.contentTintColor = .controlAccentColor
-        icon.imageScaling = .scaleNone       // the configuration already sized it
-        icon.imageAlignment = .alignCenter
+        icon.imageScaling = .scaleNone
         icon.translatesAutoresizingMaskIntoConstraints = false
-        box.addSubview(icon)
+        tile.addSubview(icon)
 
         let t = NSTextField(labelWithString: title)
-        t.font = .systemFont(ofSize: 13, weight: .semibold)
+        t.font = .systemFont(ofSize: 15, weight: .semibold)
         t.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(t)
 
         let d = NSTextField(wrappingLabelWithString: detail)
-        d.font = .systemFont(ofSize: 12)
+        d.font = .systemFont(ofSize: 13)
         d.textColor = .secondaryLabelColor
-        d.preferredMaxLayoutWidth = 420
+        d.preferredMaxLayoutWidth = 440
         d.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(d)
 
         NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: box.leadingAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 22),
-            // Level with the title, not with the top of the whole row: the
-            // second line of text must not drag the glyph downwards.
-            icon.centerYAnchor.constraint(equalTo: t.centerYAnchor),
+            tile.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            tile.topAnchor.constraint(equalTo: box.topAnchor),
+            tile.widthAnchor.constraint(equalToConstant: 52),
+            tile.heightAnchor.constraint(equalToConstant: 52),
+            tile.bottomAnchor.constraint(lessThanOrEqualTo: box.bottomAnchor),
 
-            t.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
-            t.topAnchor.constraint(equalTo: box.topAnchor),
+            icon.centerXAnchor.constraint(equalTo: tile.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: tile.centerYAnchor),
+
+            // The text block is centred against the tile rather than pinned to
+            // its top, so a one-line and a two-line row both sit level with it.
+            t.leadingAnchor.constraint(equalTo: tile.trailingAnchor, constant: 18),
+            t.topAnchor.constraint(equalTo: box.topAnchor, constant: 6),
             t.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
 
             d.leadingAnchor.constraint(equalTo: t.leadingAnchor),
-            d.topAnchor.constraint(equalTo: t.bottomAnchor, constant: 2),
+            d.topAnchor.constraint(equalTo: t.bottomAnchor, constant: 3),
             d.trailingAnchor.constraint(lessThanOrEqualTo: box.trailingAnchor),
-            d.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+            d.bottomAnchor.constraint(lessThanOrEqualTo: box.bottomAnchor),
         ])
 
         box.setAccessibilityLabel("\(title). \(detail)")
