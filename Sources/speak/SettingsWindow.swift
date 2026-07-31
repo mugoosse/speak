@@ -863,7 +863,7 @@ final class PermissionsPane: Pane {
     }
 
     @objc private func fixAccessibility() {
-        Permissions.promptAccessibility()
+        Permissions.openAccessibilitySettings()
         // Same reason as in onboarding: the grant lands in another app, later,
         // and without this the tap stays dead until Speak is relaunched.
         app?.watchForAccessibility()
