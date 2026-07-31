@@ -6,31 +6,42 @@ have to be done once.
 
 ## Cutting a release
 
-```sh
-echo 1.0.1 > VERSION
-git commit -am "1.0.1"
-git tag v1.0.1
-git push && git push --tags
-```
-
-That is it. The tag triggers `.github/workflows/release.yml`, which builds,
-signs, notarizes, staples, packages, signs the appcast, publishes the release,
-attests provenance, and opens a pull request against the Homebrew tap.
-
-The tag has to agree with `VERSION`. `release.sh` refuses to publish otherwise,
-because a release named `v1.0.1` containing `Speak-1.0.0.dmg` is worse than a
-failed build.
-
-### Doing it locally instead
+Releases are cut locally, from a machine holding the signing certificate, the
+notarytool profile and the Sparkle key. This is the whole procedure:
 
 ```sh
-./release.sh              # build and package into dist/, publish nothing
-./release.sh --publish    # also tag, create the GitHub release and upload
+echo 1.0.3 > VERSION
+# edit RELEASE_NOTES.md only if the boilerplate changed; the changelog itself
+# is generated from the commits since the last tag
+git commit -am "what changed"          # becomes the changelog line
+./release.sh --publish
 ```
 
-Same script CI runs, so a local release and a CI release cannot diverge.
-`--publish` additionally refuses to run against a dirty working tree, since a
-tag that points at uncommitted work cannot be rebuilt.
+`--publish` tags, pushes the tag, builds, signs, notarizes and staples both the
+app and the DMG, signs the appcast, creates the GitHub release and uploads
+every asset. Without it, `./release.sh` builds and packages into `dist/` and
+publishes nothing, which is the way to check a build before committing to it.
+
+Two things it refuses to do, both deliberate: publish from a dirty working
+tree, since a tag pointing at uncommitted work cannot be rebuilt, and publish
+when the tag and `VERSION` disagree, because a release named `v1.0.3`
+containing `Speak-1.0.2.dmg` is worse than a failed build.
+
+Then update the Homebrew cask, which is a separate repository. See
+[Homebrew](#homebrew) below.
+
+### Why not CI
+
+`.github/workflows/release.yml` is complete and does the same work by calling
+the same script, so the two cannot diverge. It is `workflow_dispatch`-only and
+the repository has **no secrets set**, so it will not sign, notarize or publish
+anything as things stand.
+
+That is a choice, not an oversight: it keeps the Developer ID certificate, the
+notarization password and the Sparkle private key off GitHub. The cost is that
+releasing needs the right Mac. To move to CI, set the seven secrets listed
+under [Repository secrets](#repository-secrets) and dispatch the workflow with
+an existing tag.
 
 ### When notarization stalls
 
@@ -125,8 +136,10 @@ Store that in a password manager, then delete the file.
 
 ### Repository secrets
 
-Needed for CI to sign and publish. Without them the build still runs and
-produces unsigned artifacts, so a fork works with no setup at all.
+**None of these are set, and a local release needs none of them.** They are
+listed for whoever decides to move releasing into CI. Without them the workflow
+still builds and produces unsigned artifacts rather than failing, which is what
+lets a fork build with no setup at all.
 
 | Secret | How to get it |
 |---|---|
@@ -153,16 +166,35 @@ The cask lives in [mugoosse/homebrew-tap](https://github.com/mugoosse/homebrew-t
 not in `homebrew-cask`. The main repository has notability requirements, roughly
 30+ stars or 75+ days of history, which Speak does not meet yet.
 
-`homebrew-tap.yml` opens the version bump as a pull request rather than pushing
-to main, so a broken cask needs a merge to reach users. Run it by hand if the
-automatic dispatch failed:
+The bump is two lines, `version` and `sha256`, and it is done by hand. The tap
+is normally already checked out beside this repository, so there is nothing to
+clone:
 
 ```sh
-gh workflow run homebrew-tap.yml -f tag=v1.0.1
+cd ../homebrew-tap
+git pull
+# take the hash from dist/SHA256SUMS.txt, which release.sh just wrote
+grep '\.dmg' ../speak/dist/SHA256SUMS.txt
+$EDITOR Casks/speak.rb          # version "1.0.3", sha256 "…"
+git commit -am "speak 1.0.3" && git push
 ```
 
-It rewrites only the `version` and `sha256` lines. The caveats and zap stanzas
-are hand-written and are not derivable from a release, so they survive.
+Use the hash of `Speak-x.y.z.dmg`, the versioned name, not `Speak.dmg`. They are
+the same bytes today, but the versioned URL is the immutable one, and pinning a
+hash to a moving URL is worse than not pinning at all.
+
+Verify what users will actually get:
+
+```sh
+brew update && brew info --cask mugoosse/tap/speak
+```
+
+`homebrew-tap.yml` automates the same two lines as a pull request, but it needs
+`HOMEBREW_TAP_TOKEN`, which is not set. Until it is, `gh workflow run
+homebrew-tap.yml` fails on its first step.
+
+Nothing rewrites the caveats or zap stanzas: they are hand-written and not
+derivable from a release, so they survive either way.
 
 ## Verifying a release
 
