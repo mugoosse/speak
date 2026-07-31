@@ -332,28 +332,72 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             setStatus(.loading)
         }
 
-        loadTask = Task {
+        // Detached, with the result delivered through `onMainNow` instead of
+        // by resuming on the main actor.
+        //
+        // `Transcriber` is an actor, so the weights already load off the main
+        // thread. What used to stall was the *resumption*: awaiting from a
+        // main-actor task hands the continuation to the main dispatch queue,
+        // and that queue does not drain while a menu is open. So `ready` was
+        // set, and the icon and menu updated, only once the user closed the
+        // menu they had opened to watch for exactly that change. The line said
+        // "Dictation starts once this finishes" while being the reason it
+        // could not finish.
+        let engine = transcriber
+        loadTask = Task.detached { [weak self] in
             do {
-                try await transcriber.load(choice)
-                stopDownloadWatch()
-                        ready = true
-                setStatus(.ready)
+                try await engine.load(choice)
+                Self.onMainNow { self?.modelDidLoad() }
             } catch {
-                // Checked before stopping the watch: by the time a cancelled
-                // task resumes, the engine it was replaced by may already have
-                // started its own, and tearing that down would freeze the new
-                // one's progress at whatever it last showed.
                 // A cancelled load is a deliberate switch to another engine,
                 // not a failure. Reporting it as one would put a red error on
                 // the step at the exact moment the user did the right thing.
+                //
+                // Checked before touching the download watch: by the time a
+                // cancelled task resumes, the engine it was replaced by may
+                // already have started its own, and tearing that down would
+                // freeze the new one's progress at whatever it last showed.
                 if Task.isCancelled || error is CancellationError {
                     log("model load cancelled")
                     return
                 }
-                stopDownloadWatch()
-                setStatus(.failed(ModelStatus.describe(error)))
                 log("model load failed: \(error)")
+                // Rendered here rather than carried across: an arbitrary Error
+                // is not Sendable, and a String is.
+                let message = ModelStatus.describe(error)
+                Self.onMainNow { self?.modelDidFail(message) }
             }
+        }
+    }
+
+    private func modelDidLoad() {
+        stopDownloadWatch()
+        ready = true
+        setStatus(.ready)
+    }
+
+    private func modelDidFail(_ message: String) {
+        stopDownloadWatch()
+        setStatus(.failed(message))
+    }
+
+    /// Run `body` on the main thread, including while a menu is open.
+    ///
+    /// Anything routed through the main actor is delivered on the main dispatch
+    /// queue, and that queue does not drain during the modal tracking loop
+    /// NSMenu runs while it is on screen. `RunLoop.perform(inModes:)` is the
+    /// way in: `.common` covers the event-tracking mode AppKit uses for menus,
+    /// so the block runs with the menu still open rather than after it closes.
+    ///
+    /// `assumeIsolated` asserts something already true, since
+    /// `perform(inModes:)` runs the block on the main thread. It is what makes
+    /// this synchronous, and a hop back through the main actor here would
+    /// reintroduce the whole problem.
+    nonisolated private static func onMainNow(
+        _ body: @escaping @Sendable @MainActor () -> Void
+    ) {
+        RunLoop.main.perform(inModes: [.common]) {
+            MainActor.assumeIsolated { body() }
         }
     }
 
@@ -375,7 +419,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // exactly as long as the user is looking at the thing it updates.
         let timer = Timer(timeInterval: 1.0, repeats: true) {
             [weak self] _ in
-            Task { @MainActor in
+            // Synchronously, not `Task { @MainActor in }`. A timer added to
+            // RunLoop.main already fires on the main thread, so that hop bought
+            // nothing and cost everything: it re-entered through the main
+            // dispatch queue, which does not drain during a menu's tracking
+            // loop, so scheduling the timer in `.common` above stopped meaning
+            // anything the moment a menu was open. This line froze for exactly
+            // as long as the user watched it.
+            MainActor.assumeIsolated {
                 guard let self, case .downloading = self.status else { return }
                 if choice.isDownloaded {
                     self.setStatus(.loading)
