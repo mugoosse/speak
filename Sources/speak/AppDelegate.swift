@@ -228,7 +228,54 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.async { [weak self] in self?.dropMenu() }
     }
 
-    private func dropMenu() {
+    /// True once macOS has laid the status item into the menu bar.
+    ///
+    /// The item's window is created immediately and positioned asynchronously,
+    /// and `performClick` on it before that lands opens the menu at the screen's
+    /// top-left corner instead of under the icon.
+    ///
+    /// Two distinct not-yet-placed states were traced, both reporting
+    /// `isVisible == true`, which is why visibility cannot be the test:
+    ///
+    ///     (0,   0, 30,  0)   just created, zero height
+    ///     (0, -33, 30, 33)   given a height, still parked below the screen
+    ///
+    /// Height alone is not enough either: the second state has a real height and
+    /// still lands in the corner. A placed item is in the menu bar, so the test
+    /// is whether its frame is on a screen at all. Both bad states sit entirely
+    /// at or below y=0 and so intersect nothing.
+    private var statusItemIsPlaced: Bool {
+        guard let frame = statusItem?.button?.window?.frame,
+              frame.height > 0 else { return false }
+        return NSScreen.screens.contains { $0.frame.intersects(frame) }
+    }
+
+    /// Drop the menu, once the status item has actually been given its place.
+    ///
+    /// This shipped broken in 1.0.1. It never appeared during development
+    /// because the race is only lost on a slower layout: on a 1512-point
+    /// MacBook Pro with a crowded menu bar the frame was still unplaced when
+    /// activation landed, while on a 3360-point display it was already
+    /// `(3330, 1396, 30, 22)`. Both traced with `SPEAK_DEBUG=1`.
+    ///
+    /// Polling rather than observing, because there is no notification for "your
+    /// status item has been placed".
+    ///
+    /// Giving up after two seconds clicks anyway. That reproduces the old
+    /// misplaced menu rather than silently never showing one, which is the
+    /// better failure if an item genuinely never gets placed, as happens when
+    /// the menu bar is full.
+    private func dropMenu(retriesLeft: Int = 40) {
+        if DEBUG {
+            log("dropMenu: frame \(statusItem?.button?.window?.frame ?? .zero) "
+                + "placed=\(statusItemIsPlaced) retriesLeft=\(retriesLeft)")
+        }
+        if !statusItemIsPlaced, retriesLeft > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.dropMenu(retriesLeft: retriesLeft - 1)
+            }
+            return
+        }
         // performClick is the supported way to drop a status item's menu
         // programmatically; there is no public "open this menu" call. It
         // returns once the menu closes, which is when the window that bought
