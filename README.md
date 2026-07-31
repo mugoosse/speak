@@ -37,7 +37,7 @@ because there is no server.** That is the whole app.
 
 ## Download
 
-### **[Download Speak for Mac](https://github.com/mugoosse/speak/releases/latest)**
+### **[Download Speak for Mac](https://github.com/mugoosse/speak/releases/latest/download/Speak.dmg)**
 
 Open the downloaded file and drag **Speak** to Applications. It is signed and
 notarized by Apple, so it opens normally, with no "unidentified developer"
