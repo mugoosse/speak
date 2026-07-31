@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Speak, talk instead of typing on your Mac</title>
+<meta name="description" content="Push-to-talk dictation for macOS. Press a shortcut, speak, and your words appear in whatever app you are in. Free, runs offline, no account." />
+
+<link rel="icon" href="icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Speak, talk instead of typing on your Mac" />
+<meta property="og:description" content="Press a shortcut, speak, and your words appear in whatever app you are in. Free, runs offline, no account." />
+<meta property="og:image" content="https://mugoosse.github.io/speak/social-preview.png" />
+<meta property="og:url" content="https://mugoosse.github.io/speak/" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<style>
+  /* Palette sampled from the app icon, so the site, the card and the app
+     agree. This page commits to one dark look rather than following the
+     system theme: the product is a black menu-bar app and the icon only
+     reads on dark. */
+  :root {
+    --ink:        #0d0d0c;
+    --ink-raised: #161615;
+    --line:       #262624;
+    --mint:       #9bdcb0;
+    --mint-dim:   rgba(155, 220, 176, 0.14);
+    --text:       #f2f2f0;
+    --grey:       #a0a09d;
+    --grey-dim:   #6d6d6a;
+    --radius:     14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font: 400 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter,
+          system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+  a { color: var(--mint); }
+
+  h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
+
+  /* ---------------------------------------------------------------- hero */
+
+  header {
+    text-align: center;
+    padding: 88px 0 56px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Same mint bloom as the social card, behind the icon. */
+  header::before {
+    content: "";
+    position: absolute;
+    top: -170px; left: 50%;
+    width: 760px; height: 760px;
+    transform: translateX(-50%);
+    background: radial-gradient(closest-side,
+                rgba(155, 220, 176, 0.11), rgba(155, 220, 176, 0) 72%);
+    pointer-events: none;
+  }
+
+  header > * { position: relative; }
+
+  .icon { width: 104px; height: 104px; margin-bottom: 22px; }
+
+  h1 { font-size: 60px; font-weight: 700; }
+
+  .tagline {
+    font-size: 25px;
+    font-weight: 500;
+    color: var(--mint);
+    margin: 14px 0 0;
+    letter-spacing: -0.01em;
+  }
+
+  .tagline span { color: var(--grey); }
+
+  .lede {
+    font-size: 18px;
+    color: var(--grey);
+    max-width: 30em;
+    margin: 22px auto 0;
+  }
+
+  .lede strong { color: var(--text); font-weight: 500; }
+
+  /* -------------------------------------------------------------- button */
+
+  .cta { margin-top: 36px; }
+
+  .button {
+    display: inline-block;
+    background: var(--mint);
+    color: #0d0d0c;
+    font-size: 18px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 15px 32px;
+    border-radius: 999px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    box-shadow: 0 0 0 0 rgba(155, 220, 176, 0.4);
+  }
+
+  .button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 30px -8px rgba(155, 220, 176, 0.55);
+  }
+
+  .under-button {
+    font-size: 14.5px;
+    color: var(--grey-dim);
+    margin: 16px 0 0;
+  }
+
+  .under-button code {
+    font-size: 13px;
+    color: var(--grey);
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 3px 8px;
+  }
+
+  /* ---------------------------------------------------------------- demo */
+
+  .demo {
+    margin: 8px auto 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--ink-raised);
+    padding: 30px 26px;
+    text-align: left;
+  }
+
+  /* Stand-in until the screen recording lands. It is deliberately abstract,
+     a generic text field rather than a mock of any real app, so it reads as
+     an illustration and not as a screenshot of something that does not
+     exist. Replace the whole .demo block with the GIF when it is recorded. */
+  .field {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--ink);
+    padding: 16px 18px;
+    font-size: 17px;
+    color: var(--text);
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    /* The animated line is sized in em, so a narrow viewport would push it
+       past the field's right edge rather than wrapping (it is nowrap). Clip
+       here so it never bleeds into the border. */
+    overflow: hidden;
+  }
+
+  .typed {
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 2px solid var(--mint);
+    width: 0;
+    animation: type 4.5s steps(46) infinite;
+  }
+
+  @keyframes type {
+    0%           { width: 0; }
+    12%          { width: 0; }
+    62%, 92%     { width: 25.5em; }
+    100%         { width: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .typed { animation: none; width: 25.5em; }
+  }
+
+  .demo-caption {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--grey-dim);
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+
+  kbd {
+    font: 500 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: var(--text);
+  }
+
+  /* ------------------------------------------------------------ sections */
+
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+
+  h2 { font-size: 28px; font-weight: 650; margin-bottom: 8px; }
+
+  .sub { color: var(--grey); margin: 0 0 28px; }
+
+  .steps { display: grid; gap: 20px; grid-template-columns: repeat(3, 1fr); }
+
+  .step {
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+
+  .step .n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--mint-dim);
+    color: var(--mint);
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .step h3 { font-size: 17px; font-weight: 600; margin-bottom: 5px; }
+  .step p  { font-size: 15px; color: var(--grey); margin: 0; }
+
+  ul.plain { list-style: none; padding: 0; margin: 0; }
+
+  ul.plain li {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+  }
+
+  ul.plain li:last-child { border-bottom: 0; }
+
+  ul.plain .k { color: var(--mint); flex: 0 0 auto; }
+
+  ul.plain .v { color: var(--grey); font-size: 16px; }
+
+  ul.plain .v b { color: var(--text); font-weight: 600; }
+
+  .callout {
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--mint);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    color: var(--grey);
+  }
+
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 12px; }
+  .callout strong { color: var(--text); font-weight: 600; }
+
+  /* -------------------------------------------------------------- footer */
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 40px 0 64px;
+    text-align: center;
+    color: var(--grey-dim);
+    font-size: 14.5px;
+  }
+
+  footer a { color: var(--grey); text-decoration: none; }
+  footer a:hover { color: var(--mint); }
+  footer .links { margin-bottom: 14px; display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; }
+
+  /* ------------------------------------------------------------ narrower */
+
+  @media (max-width: 620px) {
+    header { padding: 60px 0 40px; }
+    h1 { font-size: 42px; }
+    .tagline { font-size: 20px; }
+    .lede { font-size: 16.5px; }
+    .steps { grid-template-columns: 1fr; }
+    /* 25.5em of animated text has to fit inside the field's 36px of padding
+       on the narrowest phones, which puts the ceiling at 13px here. */
+    .field { font-size: 13px; padding: 14px; }
+    .demo { padding: 20px 16px; }
+    section { padding: 44px 0; }
+    h2 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img class="icon" src="icon.png" alt="" />
+    <h1>Speak</h1>
+    <p class="tagline">Talk instead of typing.<br /><span>Anywhere on your Mac.</span></p>
+
+    <p class="lede">
+      Press a shortcut, say what you mean, press it again. Your words appear in
+      whatever app you are already in: an email, Slack, a search bar, a code
+      comment. <strong>Free, and your voice never leaves your Mac.</strong>
+    </p>
+
+    <div class="cta">
+      <a class="button" href="https://github.com/mugoosse/speak/releases/latest">Download for Mac</a>
+      <p class="under-button">
+        Free and open source. Apple silicon, macOS 14 or later.<br />
+        Homebrew: <code>brew install --cask mugoosse/tap/speak</code>
+      </p>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!--
+    DEMO GIF GOES HERE.
+
+    Record about 10 seconds: cursor already in a text field, press the chord,
+    say one sentence, press again, text appears. Save it as docs/demo.gif at
+    around 1200px wide, then replace this entire <div class="demo"> block with:
+
+      <p style="text-align:center;margin:8px 0 0">
+        <img src="demo.gif" alt="Pressing the shortcut, speaking, and the text appearing"
+             style="width:100%;border:1px solid var(--line);border-radius:14px" />
+      </p>
+  -->
+  <div class="demo">
+    <div class="field"><span class="typed">Speak turns what you say into text, right where you are.</span></div>
+    <p class="demo-caption">
+      <kbd>fn</kbd> <kbd>&#8679;</kbd> to start, speak, press again to stop
+    </p>
+  </div>
+
+  <section>
+    <h2>How it works</h2>
+    <p class="sub">Three steps, and then it is out of your way.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="n">1</span>
+        <h3>Press</h3>
+        <p>A shortcut you pick, from anywhere. No window to open, no app to switch to.</p>
+      </div>
+      <div class="step">
+        <span class="n">2</span>
+        <h3>Speak</h3>
+        <p>Say it the way you would say it out loud. The menu bar shows a red dot while it listens.</p>
+      </div>
+      <div class="step">
+        <span class="n">3</span>
+        <h3>Press again</h3>
+        <p>Your words land in whatever was focused, and stay on the clipboard so &#8984;V works too.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Your voice never leaves your Mac</h2>
+    <p class="sub">Not as a policy. As an architecture.</p>
+    <div class="callout">
+      <p>
+        Speak downloads a speech model once, then runs it on your own hardware
+        using Apple&#8217;s MLX framework. Transcription never touches the
+        network. <strong>There is no account because there is no server</strong>
+        that could hold your recordings, even in principle.
+      </p>
+      <p>
+        The trade is worth stating plainly: when a local model gets a word
+        wrong, it is wrong. There is no cloud fallback to catch it, and there
+        is no custom dictionary yet, so unusual names come out however the
+        model heard them.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What you need</h2>
+    <ul class="plain">
+      <li>
+        <span class="k">&#9679;</span>
+        <span class="v"><b>A Mac with Apple silicon.</b> M1 or newer, so any Mac
+        sold since late 2020. There is no Intel version.</span>
+      </li>
+      <li>
+        <span class="k">&#9679;</span>
+        <span class="v"><b>macOS 14 or later.</b> The Apple Intelligence engine
+        additionally needs macOS 26.</span>
+      </li>
+      <li>
+        <span class="k">&#9679;</span>
+        <span class="v"><b>About 5 GB free</b> for the speech model, downloaded
+        once on first run. You can skip that entirely by choosing Apple
+        Intelligence instead.</span>
+      </li>
+      <li>
+        <span class="k">&#9679;</span>
+        <span class="v"><b>Two permissions.</b> The microphone, so it can hear
+        you, and Accessibility, so the shortcut works while you are in another
+        app. A setup window walks through both.</span>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>How fast</h2>
+    <p class="sub">
+      About <strong style="color:var(--text)">35&#8239;ms</strong> to turn a
+      six-second sentence into text, measured warm on an M4&#8239;Max. In
+      practice the words are on screen before you have finished letting go of
+      the key. Most people speak at around 150 words a minute and type at
+      around 40.
+    </p>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/mugoosse/speak">GitHub</a>
+      <a href="https://github.com/mugoosse/speak#manual">Manual</a>
+      <a href="https://github.com/mugoosse/speak#troubleshooting">Troubleshooting</a>
+      <a href="https://github.com/mugoosse/speak/issues">Report a problem</a>
+    </div>
+    <div>
+      Made by <a href="https://maxgoespublic.com/">Maxime Goossens</a>.
+      Free software under
+      <a href="https://github.com/mugoosse/speak/blob/main/LICENSE">AGPL&#8239;3.0</a>.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
