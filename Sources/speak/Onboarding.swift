@@ -858,7 +858,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
     }
 
     @objc private func openAccessibility() {
-        Permissions.promptAccessibility()
+        Permissions.openAccessibilitySettings()
         // The grant happens in System Settings, in another app, possibly a
         // minute from now. Watch for it so the tap arms itself instead of
         // waiting for a relaunch.
