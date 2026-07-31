@@ -162,6 +162,38 @@ struct ModelChoice {
         if kind == .apple { return true }        // nothing of ours to fetch
         return size(of: cacheDirectory) > Int64(Double(approxBytes) * 0.97)
     }
+
+    /// What removing this model would give back.
+    ///
+    /// A sum, where `bytesOnDisk` takes a maximum. That one follows a single
+    /// download through two locations, so the larger reading is the truthful
+    /// one. This one answers "how much do I get back", and the answer is both,
+    /// because the weights really are stored twice. See README, Disk use.
+    var bytesUsed: Int64 {
+        guard kind != .apple else { return 0 }   // system assets, not ours
+        return size(of: downloadDirectory) + size(of: cacheDirectory)
+    }
+
+    /// Delete both copies, returning what was freed.
+    ///
+    /// Both or neither. Leaving the hub blob cache behind makes the next
+    /// selection look like a suspiciously fast download that is really a local
+    /// copy, and leaving mlx-audio's copy behind does not reclaim the space
+    /// the user asked for.
+    @discardableResult
+    func removeFromDisk() -> Int64 {
+        guard kind != .apple else { return 0 }
+        let freed = bytesUsed
+        for dir in [downloadDirectory, cacheDirectory] {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        return freed
+    }
+
+    /// "2.3 GB", written the way the rest of macOS writes it.
+    static func humanBytes(_ n: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: n, countStyle: .file)
+    }
 }
 
 /// What the model is doing, so the UI can say something specific instead of

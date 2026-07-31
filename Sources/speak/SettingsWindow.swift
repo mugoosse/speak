@@ -72,6 +72,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
 class Pane: NSViewController {
     let stack = NSStackView()
 
+
     override func loadView() {
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -79,11 +80,30 @@ class Pane: NSViewController {
         stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 22, right: 24)
         view = stack
         view.setFrameSize(NSSize(width: 540, height: 500))
-        build()
+        buildContents()
     }
 
     /// Subclasses override.
     func build() {}
+
+    /// `build()` plus the spacer that keeps a short pane top-aligned.
+    ///
+    /// A vertical NSStackView hands surplus height to whichever arranged
+    /// subview hugs its content least. Controls hug at 250 and labels at 750,
+    /// so on a pane whose content is shorter than the window a control row was
+    /// silently stretched, and because `row` centres its contents the control
+    /// then floated in the middle of the extra space. That is what put a
+    /// 24-point Language popup inside a 110-point row with a matching hole
+    /// above and below it, while the same popup in General looked right purely
+    /// because that pane happened to fill its height.
+    ///
+    /// This spacer hugs at 1, so it loses to everything and absorbs the lot.
+    private func buildContents() {
+        build()
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .vertical)
+        stack.addArrangedSubview(spacer)
+    }
 
     func heading(_ s: String) -> NSTextField {
         let t = NSTextField(labelWithString: s)
@@ -119,7 +139,7 @@ class Pane: NSViewController {
         stack.arrangedSubviews.forEach {
             stack.removeArrangedSubview($0); $0.removeFromSuperview()
         }
-        build()
+        buildContents()
     }
 }
 
@@ -472,6 +492,18 @@ final class ModelPane: Pane {
             stack.addArrangedSubview(d)
         }
 
+        // Directly under the engine list, not after Language. It reports the
+        // state of the engine chosen above, and sitting below the Language
+        // picker it read as though "Ready" described the language.
+        stack.addArrangedSubview(statusView())
+
+        if Settings.envOverride != nil {
+            let o = caption("SPEAK_MODEL is set to “\(Settings.envOverride!)”, "
+                            + "which overrides this choice.")
+            o.textColor = .systemOrange
+            stack.addArrangedSubview(o)
+        }
+
         // Language only appears for Apple Intelligence. Parakeet v2 is English
         // by construction and v3's language parameter never reaches its
         // decoder, so a picker there would be a control that does nothing.
@@ -482,20 +514,18 @@ final class ModelPane: Pane {
             localePopup = NSPopUpButton(frame: .zero, pullsDown: false)
             localePopup.target = self
             localePopup.action = #selector(selectLocale)
+            // Populated before it joins the stack, the way the Microphone
+            // popup in General is. An empty NSPopUpButton has no useful
+            // intrinsic height, so the stack has nothing to size its row by
+            // and stretches it to whatever height is going; `row` centres its
+            // contents, so the control ends up floating in the middle of a
+            // hole with matching gaps above and below. Adding the items later
+            // does not undo it.
+            loadLocales()
             stack.addArrangedSubview(row([localePopup]))
             stack.addArrangedSubview(caption(
                 "Automatic follows your Mac's language, preferring one already "
                 + "installed. Others may download a small language pack."))
-            loadLocales()
-        }
-
-        stack.addArrangedSubview(statusView())
-
-        if Settings.envOverride != nil {
-            let o = caption("SPEAK_MODEL is set to “\(Settings.envOverride!)”, "
-                            + "which overrides this choice.")
-            o.textColor = .systemOrange
-            stack.addArrangedSubview(o)
         }
 
         stack.addArrangedSubview(separator())
@@ -521,6 +551,82 @@ final class ModelPane: Pane {
                 "Kept in ~/.cache/huggingface. The download is the only time "
                 + "Speak uses the network; transcription is always local."))
         }
+
+        // Disk space last, because it is housekeeping rather than a choice.
+        //
+        // One control for the whole pane rather than a line under each engine:
+        // the question is "how much is Speak using and can I have some back",
+        // not "what do I do about this particular model".
+        //
+        // It belongs in the app rather than only in the README because Speak
+        // is the only thing that knows which directories inside
+        // ~/.cache/huggingface are its own. That cache is shared with anything
+        // else using MLX on this Mac, so "delete the folder" is bad advice and
+        // this is the honest alternative.
+        let downloaded = ModelChoice.all.filter { $0.kind != .apple && $0.isDownloaded }
+        if !downloaded.isEmpty {
+            stack.addArrangedSubview(separator())
+            stack.addArrangedSubview(heading("Disk space"))
+
+            let total = downloaded.reduce(Int64(0)) { $0 + $1.bytesUsed }
+            stack.addArrangedSubview(caption(
+                "Speak's downloaded models use \(ModelChoice.humanBytes(total)). "
+                + "That is more than the download size because each model is "
+                + "stored twice: once in the shared Hugging Face cache and "
+                + "again in mlx-audio's own copy."))
+
+            // Never the engine in use. Deleting the weights out from under it
+            // would only force a re-download at the next launch, so the way to
+            // reclaim everything is to pick Apple Intelligence first, which
+            // needs no download and makes every Parakeet removable.
+            let removable = downloaded.filter { $0.id != Settings.choice.id }
+            if removable.isEmpty {
+                stack.addArrangedSubview(caption(
+                    "Only the engine you are using is downloaded. Switch to "
+                    + "Apple Intelligence, which needs no download, to free "
+                    + "this up."))
+            } else {
+                let reclaimable = removable.reduce(Int64(0)) { $0 + $1.bytesUsed }
+                let free = NSButton(
+                    title: "Free up \(ModelChoice.humanBytes(reclaimable))",
+                    target: self, action: #selector(freeUpSpace))
+                // Same reason the radio buttons are disabled while busy: a
+                // deletion mid-download would race the fetch writing into it.
+                free.isEnabled = !busy
+                stack.addArrangedSubview(row([free]))
+                stack.addArrangedSubview(caption(
+                    "Removes \(removable.map(\.title).joined(separator: " and ")), "
+                    + "which you are not using. The engine you have selected is "
+                    + "left alone."))
+            }
+        }
+    }
+
+    @objc private func freeUpSpace() {
+        let removable = ModelChoice.all.filter {
+            $0.kind != .apple && $0.isDownloaded && $0.id != Settings.choice.id
+        }
+        // Recomputed rather than captured: the pane rebuilds on every status
+        // change, so the selected engine can move under a click already in
+        // flight, and the one thing this must never delete is the engine in use.
+        guard !removable.isEmpty else { return }
+
+        let names = removable.map(\.title).joined(separator: " and ")
+        let freed = removable.reduce(Int64(0)) { $0 + $1.bytesUsed }
+
+        let a = NSAlert()
+        a.messageText = "Remove \(names)?"
+        a.informativeText =
+            "\(ModelChoice.humanBytes(freed)) will be freed. Choosing one of "
+            + "these engines again re-downloads it, which takes a few minutes. "
+            + "The engine you have selected is not touched."
+        a.addButton(withTitle: "Remove")
+        a.addButton(withTitle: "Cancel")
+        a.alertStyle = .warning
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+
+        for choice in removable { choice.removeFromDisk() }
+        rebuild()
     }
 
     @objc private func openModelPage() {
@@ -656,6 +762,7 @@ final class ModelPane: Pane {
         app?.reloadModel()
         rebuild()
     }
+
 }
 
 // ---------------------------------------------------------------------------
