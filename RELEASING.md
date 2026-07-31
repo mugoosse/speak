@@ -60,6 +60,7 @@ whether an update exists, so it going backwards would strand every user.
 | Asset | Why |
 |---|---|
 | `Speak-x.y.z.dmg` | drag-to-Applications install, what the cask downloads |
+| `Speak.dmg` | the same file under a name that never changes, so `/releases/latest/download/Speak.dmg` is a permanent direct link for the README and the website. The versioned name has to stay: the cask pins a sha256 to it, which only means something while that URL is immutable |
 | `Speak-x.y.z.zip` | the Sparkle update archive, no mounting step |
 | `appcast.xml` | the Sparkle feed, signed |
 | `SHA256SUMS.txt` | so a download can be verified without trusting a terminal |

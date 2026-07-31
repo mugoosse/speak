@@ -35,6 +35,16 @@ done
 
 ZIP="$DIST/Speak-$VERSION.zip"
 DMG="$DIST/Speak-$VERSION.dmg"
+# A byte-identical copy under a name that never changes, so that
+# /releases/latest/download/Speak.dmg is a working direct download.
+#
+# GitHub's latest/download/ redirect resolves the filename literally, so a
+# versioned name cannot be linked to without going stale on the next release.
+# That is why the feed is called appcast.xml and not appcast-1.0.2.xml, and
+# this buys the download button on the README and the website the same
+# property. The versioned name stays: the cask pins a sha256 against it, and
+# that only means anything while the URL is immutable.
+LATEST_DMG="$DIST/Speak.dmg"
 SUMS="$DIST/SHA256SUMS.txt"
 APPCAST="$DIST/appcast.xml"
 TAG="v$VERSION"
@@ -248,6 +258,12 @@ if [ "$NOTARIZED" -eq 1 ]; then
     echo "stapled the dmg"
 fi
 
+# Copied only now, after stapling. The ticket is written into the file, so a
+# copy taken any earlier would be an unstapled duplicate that shows the
+# Gatekeeper warning notarizing exists to remove. Both names are checksummed
+# below, so either download can be verified against SHA256SUMS.txt.
+cp "$DMG" "$LATEST_DMG"
+
 # --- appcast ---------------------------------------------------------------
 #
 # Sparkle reads this to decide whether an update exists. generate_appcast signs
@@ -349,7 +365,7 @@ if [ "$PUBLISH" -eq 1 ]; then
             --title "Speak $VERSION" \
             --notes-file "$ROOT/RELEASE_NOTES.md" --generate-notes
     fi
-    gh release upload "$TAG" "$ZIP" "$DMG" "$SUMS" \
+    gh release upload "$TAG" "$ZIP" "$DMG" "$LATEST_DMG" "$SUMS" \
         $([ -f "$APPCAST" ] && echo "$APPCAST") --clobber
     gh release edit "$TAG" --draft=false
 
