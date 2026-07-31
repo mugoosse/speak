@@ -4,6 +4,8 @@
 
 <h1 align="center">Speak</h1>
 
+<p align="center"><b>Talk instead of typing. Anywhere on your Mac.</b></p>
+
 <p align="center">
   <a href="https://github.com/mugoosse/speak/actions/workflows/build.yml"><img src="https://github.com/mugoosse/speak/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
   <a href="https://github.com/mugoosse/speak/releases/latest"><img src="https://img.shields.io/github/v/release/mugoosse/speak?color=2563eb" alt="Latest release" /></a>
@@ -11,44 +13,111 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL%203.0-2563eb" alt="AGPL 3.0" /></a>
 </p>
 
-Push-to-talk dictation for macOS. Press a shortcut, talk, press it again. The
-transcript lands on your clipboard. That is the whole app.
+<!--
+  DEMO GIF GOES HERE.
 
-Pure Swift, fully local. No account, no subscription, no telemetry, and nothing
-leaves the machine.
+  Record about 10 seconds: cursor already sitting in a text field (Notes,
+  Slack, a search bar), press the chord, say one sentence, press again, the
+  text appears. No cuts, no titles. The point is that it happens in an app
+  you were already using.
 
-**~35 ms** to transcribe a 6-second utterance on an M4 Max, measured warm.
+  Save it as Assets/demo.gif at 640px wide, then delete this comment and
+  uncomment the block below.
 
-## Install
+<p align="center">
+  <img src="Assets/demo.gif" width="640" alt="Pressing the shortcut, speaking, and the text appearing in another app" />
+</p>
+-->
 
-### Homebrew
+Press a shortcut, say what you mean, press it again. Your words appear in
+whatever app you are already in: an email, Slack, a search bar, a code comment.
+
+Free, no account, and your voice never leaves your Mac. **There is no account
+because there is no server.** That is the whole app.
+
+## Download
+
+### **[Download Speak for Mac](https://github.com/mugoosse/speak/releases/latest)**
+
+Open the downloaded file and drag **Speak** to Applications. It is signed and
+notarized by Apple, so it opens normally, with no "unidentified developer"
+warning to click through.
+
+<details>
+<summary>Prefer Homebrew?</summary>
 
 ```sh
 brew install --cask mugoosse/tap/speak
 ```
 
-### Download
+Homebrew installs update with `brew upgrade --cask speak` rather than through
+the in-app updater. The two do not fight.
 
-Grab the latest `.dmg` from [Releases](https://github.com/mugoosse/speak/releases),
-open it, and drag **Speak** to Applications.
+</details>
 
-Requires Apple Silicon and macOS 14 or later. macOS 26 for the Apple
-Intelligence engine.
+### What you need
 
-### First launch
+- **A Mac with Apple silicon**, meaning an M1 or newer, so any Mac sold since
+  late 2020. There is no Intel version.
+- **macOS 14 or later.** The Apple Intelligence engine additionally needs
+  macOS 26.
+- **About 5 GB free**, for the speech model Speak downloads once on first run.
+  You can skip that entirely by choosing Apple Intelligence instead.
 
-Speak asks for two permissions, and a setup window walks through both:
+### First run
+
+A setup window walks through it. Speak asks for two permissions:
 
 1. **Microphone**, so it can hear you.
-2. **Accessibility**, so the shortcut works while another app is focused.
+2. **Accessibility**, so your shortcut works while you are in another app.
 
-Accessibility is not optional: a modifier chord never arrives as a `keyDown`,
-so it has to be read from a low-level event tap, which macOS only allows for
-trusted apps.
+Then it downloads the speech model. That takes a few minutes on a normal
+connection, and it is the only time Speak uses the internet. Once the model is
+on disk you can turn the wifi off and it still works.
 
-> **If Speak is listed in Accessibility but the shortcut does nothing:** remove
-> it with the minus button and add it again. macOS keeps a stale entry after an
-> app is replaced.
+If the shortcut does nothing afterwards, see
+[Troubleshooting](#troubleshooting). There is one common macOS quirk with a
+one-line fix.
+
+## How fast
+
+About **35 ms** to turn a 6-second sentence into text, measured warm on an
+M4 Max. In practice the words are on screen before you have finished letting
+go of the key.
+
+Most people speak at around 150 words a minute and type at around 40.
+
+## Why nothing leaves your Mac
+
+Speak downloads a speech model once and then runs it on your own hardware,
+using Apple's MLX framework. Transcription never touches the network, so there
+is nothing to log in to, nothing to subscribe to, and no server that could hold
+your recordings even in principle.
+
+The trade is honest and worth stating: when a local model gets a word wrong,
+it is wrong. There is no cloud fallback to catch it. See
+[Limitations](#limitations) for the rest of what Speak deliberately will not do.
+
+---
+
+# Manual
+
+Everything below is reference. You do not need any of it to use Speak.
+
+[Use](#use) ·
+[Engines](#engines) ·
+[Shortcut](#shortcut) ·
+[Microphone](#microphone) ·
+[History](#history) ·
+[Updating](#updating) ·
+[Troubleshooting](#troubleshooting) ·
+[Uninstalling](#uninstalling) ·
+[Config](#config) ·
+[Disk use](#disk-use) ·
+[Building from source](#building-from-source) ·
+[Design](#design) ·
+[Limitations](#limitations) ·
+[Contributing](#contributing)
 
 ## Use
 
@@ -143,15 +212,6 @@ by one ordinary key. Left and right modifiers count separately, so `⌃ left` an
 A single modifier is allowed but warned about: it fires every time you press
 that key, including mid-sentence.
 
-If the chord misbehaves, macOS may be reserving fn for the emoji picker. Set
-System Settings → Keyboard → "Press 🌐 key to" → **Do Nothing**, or:
-
-```sh
-defaults write com.apple.HIToolbox AppleFnUsageType -int 0
-```
-
-Log out and back in for it to take effect.
-
 ## Microphone
 
 **Settings → General → Microphone.** "System default" follows Sound settings.
@@ -206,25 +266,34 @@ If you build from source, `./install.sh` quits the old copy, replaces it and
 relaunches. Permissions survive because `make_app.sh` signs with a stable
 identity.
 
-### Signing matters more than it looks
+## Troubleshooting
 
-Ad-hoc signing (`codesign --sign -`) produces a designated requirement of
-`cdhash H"…"`, which is the hash of *that exact build*. TCC pins the
-Accessibility grant to it, so every rebuild silently invalidates the permission:
-the toggle still looks on in System Settings, but the new binary is a different
-app as far as macOS is concerned, and the shortcut quietly stops working.
+### Speak is listed in Accessibility but the shortcut does nothing
 
-`make_app.sh` therefore signs with a real certificate when one is available,
-giving a stable requirement:
+Remove it with the minus button and add it again. macOS keeps a stale entry
+after an app is replaced, and that stale entry is the single most common reason
+a working install stops responding.
 
+### The fn key does nothing, or opens the emoji picker
+
+macOS may be reserving fn for the emoji picker. Set System Settings → Keyboard
+→ "Press 🌐 key to" → **Do Nothing**, or:
+
+```sh
+defaults write com.apple.HIToolbox AppleFnUsageType -int 0
 ```
-identifier "com.mgo.speak" and anchor apple generic and
-certificate leaf[subject.CN] = "Apple Development: …"
+
+Log out and back in for it to take effect.
+
+### Working out whether it is the model or the shortcut
+
+```sh
+/Applications/Speak.app/Contents/MacOS/Speak --transcribe some.wav
 ```
 
-Any certificate works, including the free Apple Development one Xcode installs
-when you add an Apple ID. Without one it falls back to ad-hoc and prints a
-warning explaining the consequence.
+Transcript to stdout, timings to stderr, no permissions needed. If that works,
+the model is fine and the problem is the shortcut. `SPEAK_DEBUG=1` traces every
+modifier change to stderr.
 
 ## Uninstalling
 
@@ -294,12 +363,12 @@ usually already present because system dictation uses them.
 
 Only needed to develop Speak; the releases above are prebuilt.
 
-
 ```sh
 ./build.sh      # xcodebuild wrapper
 ./make_app.sh   # wrap the binary in a signed .app
 ./install.sh    # both, then install to /Applications and relaunch
-swift make_icon.swift   # regenerate Assets/icon.png and Assets/Speak.icns
+swift make_icon.swift            # regenerate Assets/icon.png and Assets/Speak.icns
+swift make_social_preview.swift  # regenerate Assets/social-preview.png
 ```
 
 `swift build` alone is **not** enough. It links successfully and then dies at
@@ -310,14 +379,25 @@ compiles MLX's Metal kernels. Two further wrinkles, both handled by `build.sh`:
 - mlx-swift ships a `CudaBuild` plugin Xcode refuses to run unattended, hence
   `-skipPackagePluginValidation`. It is a no-op on Apple Silicon.
 
-### Verifying without the GUI
+### Signing matters more than it looks
 
-```sh
-/Applications/Speak.app/Contents/MacOS/Speak --transcribe some.wav
+Ad-hoc signing (`codesign --sign -`) produces a designated requirement of
+`cdhash H"…"`, which is the hash of *that exact build*. TCC pins the
+Accessibility grant to it, so every rebuild silently invalidates the permission:
+the toggle still looks on in System Settings, but the new binary is a different
+app as far as macOS is concerned, and the shortcut quietly stops working.
+
+`make_app.sh` therefore signs with a real certificate when one is available,
+giving a stable requirement:
+
+```
+identifier "com.mgo.speak" and anchor apple generic and
+certificate leaf[subject.CN] = "Apple Development: …"
 ```
 
-Transcript to stdout, timings to stderr, no permissions needed. The fastest way
-to tell a model problem from a shortcut problem.
+Any certificate works, including the free Apple Development one Xcode installs
+when you add an Apple ID. Without one it falls back to ad-hoc and prints a
+warning explaining the consequence.
 
 ## Design
 
@@ -352,6 +432,10 @@ key) and never arrives as a `keyDown`. Both halves are reconstructed from a
 `SPEAK_DEBUG=1` traces what your keyboard actually reports, which is how the fn
 issue above was diagnosed.
 
+This is also why Accessibility is not an optional permission: a modifier chord
+never arrives as a `keyDown`, so it has to be read from a low-level event tap,
+which macOS only allows for trusted apps.
+
 ### Download progress is elapsed time, not a percentage
 
 `URLSession.download` streams the weights into a system temp path and only moves
@@ -376,7 +460,7 @@ English clips as Cyrillic often enough to be a problem.
 
 **Download progress is elapsed time, not a percentage.** Not a stylistic
 choice; nothing observable grows during the transfer. Explained
-[below](#download-progress-is-elapsed-time-not-a-percentage).
+[above](#download-progress-is-elapsed-time-not-a-percentage).
 
 **No streaming partial results.** You get the transcript when you stop talking,
 not as you speak. Parakeet transcribes a complete utterance.
