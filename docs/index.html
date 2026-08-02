@@ -144,43 +144,11 @@
     text-align: left;
   }
 
-  /* Stand-in until the screen recording lands. It is deliberately abstract,
-     a generic text field rather than a mock of any real app, so it reads as
-     an illustration and not as a screenshot of something that does not
-     exist. Replace the whole .demo block with the GIF when it is recorded. */
-  .field {
-    border: 1px solid var(--line);
+  .demo-video {
+    display: block;
+    width: 100%;
     border-radius: 10px;
-    background: var(--ink);
-    padding: 16px 18px;
-    font-size: 17px;
-    color: var(--text);
-    min-height: 58px;
-    display: flex;
-    align-items: center;
-    /* The animated line is sized in em, so a narrow viewport would push it
-       past the field's right edge rather than wrapping (it is nowrap). Clip
-       here so it never bleeds into the border. */
-    overflow: hidden;
-  }
-
-  .typed {
-    overflow: hidden;
-    white-space: nowrap;
-    border-right: 2px solid var(--mint);
-    width: 0;
-    animation: type 4.5s steps(46) infinite;
-  }
-
-  @keyframes type {
-    0%           { width: 0; }
-    12%          { width: 0; }
-    62%, 92%     { width: 25.5em; }
-    100%         { width: 0; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .typed { animation: none; width: 25.5em; }
+    border: 1px solid var(--line);
   }
 
   .demo-caption {
@@ -290,9 +258,6 @@
     .tagline { font-size: 20px; }
     .lede { font-size: 16.5px; }
     .steps { grid-template-columns: 1fr; }
-    /* 25.5em of animated text has to fit inside the field's 36px of padding
-       on the narrowest phones, which puts the ceiling at 13px here. */
-    .field { font-size: 13px; padding: 14px; }
     .demo { padding: 20px 16px; }
     section { padding: 44px 0; }
     h2 { font-size: 24px; }
@@ -325,20 +290,9 @@
 
 <div class="wrap">
 
-  <!--
-    DEMO GIF GOES HERE.
-
-    Record about 10 seconds: cursor already in a text field, press the chord,
-    say one sentence, press again, text appears. Save it as docs/demo.gif at
-    around 1200px wide, then replace this entire <div class="demo"> block with:
-
-      <p style="text-align:center;margin:8px 0 0">
-        <img src="demo.gif" alt="Pressing the shortcut, speaking, and the text appearing"
-             style="width:100%;border:1px solid var(--line);border-radius:14px" />
-      </p>
-  -->
   <div class="demo">
-    <div class="field"><span class="typed">Speak turns what you say into text, right where you are.</span></div>
+    <video class="demo-video" src="demo.mp4" poster="demo-poster.png"
+           autoplay muted loop playsinline></video>
     <p class="demo-caption">
       <kbd>fn</kbd> <kbd>&#8679;</kbd> to start, speak, press again to stop
     </p>
@@ -441,6 +395,16 @@
     </div>
   </div>
 </footer>
+
+<script>
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('.demo-video').forEach((v) => {
+      v.removeAttribute('autoplay');
+      v.pause();
+      v.controls = true;
+    });
+  }
+</script>
 
 </body>
 </html>

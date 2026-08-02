@@ -13,21 +13,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL%203.0-2563eb" alt="AGPL 3.0" /></a>
 </p>
 
-<!--
-  DEMO GIF GOES HERE.
-
-  Record about 10 seconds: cursor already sitting in a text field (Notes,
-  Slack, a search bar), press the chord, say one sentence, press again, the
-  text appears. No cuts, no titles. The point is that it happens in an app
-  you were already using.
-
-  Save it as Assets/demo.gif at 640px wide, then delete this comment and
-  uncomment the block below.
-
 <p align="center">
   <img src="Assets/demo.gif" width="640" alt="Pressing the shortcut, speaking, and the text appearing in another app" />
 </p>
--->
 
 Press a shortcut, say what you mean, press it again. Your words appear in
 whatever app you are already in: an email, Slack, a search bar, a code comment.
