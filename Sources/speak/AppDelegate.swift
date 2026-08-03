@@ -99,7 +99,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Not on a first run. Loading here would start a 2.4 GB download
         // before the user has read a word about it, and before they have had
         // the chance to choose Apple Intelligence, which needs no download at
-        // all. Onboarding starts it once they continue past the welcome step.
+        // all. Setup's model step is where an engine is chosen and its
+        // download asked for.
         if Settings.onboarded {
             reloadModel()
         } else {
@@ -303,11 +304,28 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Model
 
-    /// Begin loading if nothing has been asked for yet. Called when onboarding
-    /// leaves the welcome step, so the download overlaps the permission steps
-    /// instead of making the user wait afterwards.
+    /// Begin loading if nothing has been asked for yet.
+    ///
+    /// Onboarding calls this only for an engine that needs no download, where
+    /// loading costs seconds off the disk and nobody has to be asked. A fetch
+    /// is never started this way: that is what the model step's button is for.
     func startModelLoadIfIdle() {
         if case .idle = status { reloadModel() }
+    }
+
+    /// Stop whatever is loading and go back to having asked for nothing.
+    ///
+    /// Selecting an engine in setup must not fetch it, so choosing one that is
+    /// not on disk lands here. It also has to cancel: picking Parakeet v3 while
+    /// v2 is downloading has to stop v2, or the bytes the user just declined
+    /// keep arriving anyway.
+    func idleModel() {
+        loadTask?.cancel()
+        loadTask = nil
+        stopDownloadWatch()
+        peakDownloadBytes = 0
+        ready = false
+        setStatus(.idle)
     }
 
     func reloadModel() {

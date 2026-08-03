@@ -34,8 +34,17 @@ final class Onboarding: NSObject, NSWindowDelegate {
         let canAdvance: (Onboarding) -> Bool
         /// A label for the primary button when the step is not yet
         /// satisfied, naming the thing to do instead of a bare
-        /// "Continue" the user cannot press yet. nil means Continue.
-        let action: (() -> String?)?
+        /// "Continue" the user cannot press yet. nil means Continue, and a
+        /// step that is not satisfied and offers no action leaves the
+        /// button disabled: there is genuinely nothing to press.
+        let action: ((Onboarding) -> String?)?
+    }
+
+    /// Positions in `steps`. The primary button's action is dispatched by
+    /// index, and resuming has to know where the model step is, so these move
+    /// with the array below.
+    private enum At {
+        static let mic = 1, accessibility = 2, model = 3
     }
 
     private var steps: [Step] {
@@ -47,11 +56,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
             .init(title: "Microphone access",
                   build: { $0.buildMic($1) },
                   canAdvance: { _ in Permissions.microphone },
-                  action: { Permissions.microphone ? nil : "Request microphone access" }),
+                  action: { _ in Permissions.microphone ? nil : "Request microphone access" }),
             .init(title: "Accessibility access",
                   build: { $0.buildAccessibility($1) },
                   canAdvance: { _ in Permissions.accessibility },
-                  action: { Permissions.accessibility ? nil : "Open Privacy & Security" }),
+                  action: { _ in Permissions.accessibility ? nil : "Open Privacy & Security" }),
             // Not `true`. Advancing mid-download landed people on "you're set"
             // with an engine that could not transcribe anything, and the
             // shortcut then did nothing for several minutes with no
@@ -60,7 +69,24 @@ final class Onboarding: NSObject, NSWindowDelegate {
             .init(title: "Speech model",
                   build: { $0.buildModel($1) },
                   canAdvance: { $0.owner?.status.isReady ?? false },
-                  action: nil),
+                  // The button is the consent for the download, so it names
+                  // the engine and only appears once one has been chosen.
+                  // While a download runs it is nothing: the progress bar is
+                  // the answer to "what now", and a live button next to it
+                  // would only invite a click that has to be refused.
+                  action: { o in
+                      guard Settings.modelChosen else { return nil }
+                      switch o.owner?.status {
+                      case .idle:
+                          let c = Settings.choice
+                          return c.isDownloaded
+                              ? "Set up \(c.title)"
+                              : "Download \(c.title) "
+                                + "(\(ModelChoice.humanBytes(c.approxBytes)))"
+                      case .failed: return "Try again"
+                      default:      return nil
+                      }
+                  }),
             // Telling someone the shortcut works is not the same as showing
             // them. This step is the only proof that the permissions, the
             // event tap, the microphone and the model all line up, and it
@@ -88,6 +114,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
     private var micHelpOpen = false
     private var axHelpOpen = false
     private var tryHelpOpen = false
+    private var languagesOpen = false
     private weak var chordChip: NSTextField?
     private weak var changeButton: NSButton?
 
@@ -172,13 +199,18 @@ final class Onboarding: NSObject, NSWindowDelegate {
         // difference between finishing setup and giving up on it.
         step = min(max(Settings.onboardingStep, 0), steps.count - 1)
 
-        // Resuming past the welcome step means its Continue was pressed in an
-        // earlier run, so the consent it represents has already been given and
-        // the load has to be started here instead. Without this, a relaunch
-        // mid-setup left the model idle forever while the model step waited
-        // for a readiness that nothing was working towards, with Continue
-        // disabled and no way out.
-        if step > 0 { owner?.startModelLoadIfIdle() }
+        // An engine that is already on disk is loaded on the way in, whichever
+        // step we land on. Nothing else on this path would ask for one, and the
+        // steps after the model step need a working engine: without this a
+        // relaunch left the model idle forever while "Try it out" waited for a
+        // readiness nothing was working towards, with Continue disabled and no
+        // way out. A download is never started here, only by its button.
+        let haveEngine = Settings.modelChosen && Settings.choice.isDownloaded
+        if haveEngine { owner?.startModelLoadIfIdle() }
+        // Nothing to resume with, so resume where it can be fetched. The same
+        // dead end otherwise: the later steps cannot load an engine and the
+        // model step is the only place that asks for one.
+        if step > At.model, !haveEngine { step = At.model }
 
         // A regular app for the duration: this window is unrecoverable if it
         // falls behind a System Settings pane, and .floating alone does not
@@ -224,15 +256,16 @@ final class Onboarding: NSObject, NSWindowDelegate {
             "About 35 ms for a six-second sentence."))
         v.addArrangedSubview(bullet("lock.fill", "Nothing leaves this Mac",
             "No account, no subscription, no telemetry."))
+        // No download warning here any more, because continuing no longer
+        // starts one. It used to: the default engine began fetching 2.4 GB as
+        // you left this screen, which spent the bandwidth of anyone who would
+        // have picked a different engine two steps later, or none at all.
+        // Nothing replaces it. Promising not to download is still a sentence
+        // about downloading, on the one screen that has nothing to do with it,
+        // and the model step makes the promise by simply not doing it.
         v.addArrangedSubview(hint(
-            "Setup takes a minute: two permissions, a shortcut, and one "
-            + "speech model. You can stop and come back."
-            + (ModelChoice.appleAvailable
-               ? "\n\nContinuing starts a 2.4 GB download for the speech "
-                 + "model. Apple Intelligence needs none if you would rather "
-                 + "not, and you can choose it in a moment."
-               : "\n\nContinuing starts a 2.4 GB download for the speech "
-                 + "model.")))
+            "Setup takes a minute: two permissions, one speech model, and a "
+            + "shortcut. You can stop and come back."))
     }
 
     /// An icon in a tile, a claim, and the evidence for it.
@@ -324,7 +357,8 @@ final class Onboarding: NSObject, NSWindowDelegate {
         // the permission lands: an offer of help under a green tick is an
         // invitation to doubt something that already worked.
         if !Permissions.microphone {
-            v.addArrangedSubview(help(expanded: micHelpOpen,
+            v.addArrangedSubview(help("Not working?", showing: "troubleshooting",
+                                      expanded: micHelpOpen,
                                       toggle: #selector(toggleMicHelp)) { inner in
                 inner.addArrangedSubview(self.hint(
                     "If no prompt appears, macOS has remembered an earlier "
@@ -343,7 +377,8 @@ final class Onboarding: NSObject, NSWindowDelegate {
                                     pending: "Switch Speak on in the list, then come back."))
 
         if !Permissions.accessibility {
-            v.addArrangedSubview(help(expanded: axHelpOpen,
+            v.addArrangedSubview(help("Not working?", showing: "troubleshooting",
+                                      expanded: axHelpOpen,
                                       toggle: #selector(toggleAxHelp)) { inner in
             // The guaranteed remedy, offered rather than described.
             //
@@ -367,12 +402,20 @@ final class Onboarding: NSObject, NSWindowDelegate {
         }
     }
 
-    /// A collapsed "Not working?" row that reveals remedies when clicked.
+    /// A collapsed row, "Not working?" or similar, that reveals detail when
+    /// clicked. `noun` names what is being revealed, for the screen reader.
     ///
     /// Every one of these steps succeeds on the first try for most people.
     /// Showing three paragraphs of recovery advice to all of them, permanently,
-    /// buys nothing and makes a two-click step look precarious.
-    private func help(expanded: Bool, toggle: Selector,
+    /// buys nothing and makes a two-click step look precarious. The same is
+    /// true of a list of 25 languages that most people do not need to read.
+    ///
+    /// The open flags these read are deliberately absent from
+    /// `structuralKey()`. Toggling one re-renders and records the new key, and
+    /// since nothing else moves, the timer finds the key unchanged and leaves
+    /// the disclosure open instead of folding it shut under the reader.
+    private func help(_ title: String, showing noun: String,
+                      expanded: Bool, toggle: Selector,
                       _ build: (NSStackView) -> Void) -> NSView {
         let column = NSStackView()
         column.orientation = .vertical
@@ -383,7 +426,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         // different family than the label and render visibly smaller than the
         // type they sit next to; a symbol configured at the label's point size
         // matches it exactly.
-        let disclose = NSButton(title: "Not working?", target: self, action: toggle)
+        let disclose = NSButton(title: title, target: self, action: toggle)
         disclose.image = (NSImage(
             systemSymbolName: expanded ? "chevron.down" : "chevron.right",
             accessibilityDescription: nil) ?? NSImage())
@@ -393,7 +436,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         disclose.bezelStyle = .inline
         disclose.controlSize = .small
         disclose.setAccessibilityLabel(
-            expanded ? "Hide troubleshooting" : "Show troubleshooting")
+            (expanded ? "Hide " : "Show ") + noun)
         column.addArrangedSubview(disclose)
 
         if expanded {
@@ -408,14 +451,30 @@ final class Onboarding: NSObject, NSWindowDelegate {
         return column
     }
 
+    /// Lines the given view up with the indented hint under a radio button,
+    /// so a disclosure belonging to one engine reads as part of that engine's
+    /// entry rather than as a control for the list.
+    private func indented(_ view: NSView) -> NSView {
+        let box = NSStackView(views: [view])
+        box.orientation = .horizontal
+        box.alignment = .top
+        box.edgeInsets = NSEdgeInsets(top: 0, left: 22, bottom: 0, right: 0)
+        return box
+    }
+
     @objc private func toggleMicHelp() { micHelpOpen.toggle(); render() }
     @objc private func toggleAxHelp() { axHelpOpen.toggle(); render() }
+    @objc private func toggleLanguages() { languagesOpen.toggle(); render() }
 
     private func buildModel(_ v: NSStackView) {
-        // Belt and braces. This step gates on the engine being ready, so
-        // arriving here with nothing loading is a dead end by construction,
-        // whichever route got here.
-        owner?.startModelLoadIfIdle()
+        // Loading, never fetching. Weights already on disk cost seconds and no
+        // bandwidth, so that engine is made ready without being asked for;
+        // anything that would download waits for the button. Arriving here
+        // with a chosen, downloaded engine and nothing loading is otherwise a
+        // dead end, since this step gates on readiness.
+        if Settings.modelChosen, Settings.choice.isDownloaded {
+            owner?.startModelLoadIfIdle()
+        }
 
         v.addArrangedSubview(paragraph(
             "Speech recognition runs entirely on this Mac. Choose which engine "
@@ -425,21 +484,62 @@ final class Onboarding: NSObject, NSWindowDelegate {
             let b = NSButton(radioButtonWithTitle: choice.title,
                              target: self, action: #selector(pickModel(_:)))
             b.identifier = NSUserInterfaceItemIdentifier(choice.id)
-            b.state = choice.id == Settings.choice.id ? .on : .off
+            // Nothing is selected until the user selects something. The
+            // default is a fallback, not an answer, and showing it as a filled
+            // radio button asks for a 2.4 GB download on behalf of somebody
+            // who has not yet read the line underneath it.
+            b.state = Settings.modelChosen && choice.id == Settings.choice.id
+                ? .on : .off
             v.addArrangedSubview(b)
 
             var line = choice.detail
             if choice.kind == .parakeet && choice.isDownloaded { line += " · already downloaded" }
             v.addArrangedSubview(hint("     " + line))
+
+            // "25 languages" is only useful if you can find out whether yours
+            // is one of them, and this is the screen where that decides which
+            // 2.4 GB you fetch.
+            if !choice.languages.isEmpty {
+                let list = indented(help(
+                    "Which languages?", showing: "the language list",
+                    expanded: languagesOpen, toggle: #selector(toggleLanguages)
+                ) { inner in
+                    inner.addArrangedSubview(self.hint(
+                        choice.languages.joined(separator: " · ")))
+                    inner.addArrangedSubview(self.hint(
+                        "Detected automatically, not chosen: this model has no "
+                        + "language setting."))
+                })
+                v.addArrangedSubview(list)
+            }
+        }
+
+        // Nothing below this line means anything until an engine is named.
+        guard Settings.modelChosen else {
+            v.addArrangedSubview(status(false, granted: "",
+                                        pending: "Choose an engine to continue."))
+            return
         }
 
         let state = owner?.status ?? ModelStatus.loading
         switch state {
         case .idle:
-            // Only reachable by going Back to this step before the download
-            // has been kicked off, which the Continue on Welcome does.
-            v.addArrangedSubview(status(false, granted: "",
-                                        pending: "Download starts when you continue."))
+            // Chosen, not yet fetched. The button below is what starts it, so
+            // this line says what it will cost rather than pretending the wait
+            // is already under way.
+            // The size is on the button and in the line under the radio
+            // button; a third copy of it here would be the same number in
+            // three places, one of which will eventually be wrong.
+            let choice = Settings.choice
+            v.addArrangedSubview(status(false, granted: "", pending: choice.isDownloaded
+                ? "\(choice.title) is on this Mac already."
+                : "\(choice.title) has not been downloaded yet."))
+            if !choice.isDownloaded {
+                v.addArrangedSubview(hint(
+                    "It takes a few minutes on a normal connection, and it is "
+                    + "the only time Speak uses the internet. You can switch "
+                    + "engines above until you press the button."))
+            }
         case .downloading, .loading:
             // Kept so the timer can tick progress without rebuilding the radio
             // buttons above it.
@@ -469,7 +569,11 @@ final class Onboarding: NSObject, NSWindowDelegate {
             // ten minutes is not. Apple Intelligence needs no download, so it
             // is a real way out rather than a consolation prize, and saying so
             // here is the difference between a wait and a dead end.
-            if ModelChoice.all.contains(where: { $0.kind == .apple }) {
+            //
+            // Downloading only. Loading weights already on disk takes seconds
+            // and has no download to stop, so the same offer there is an
+            // escape route from a wait that is already over.
+            if case .downloading = state, ModelChoice.appleAvailable {
                 v.addArrangedSubview(hint(
                     "Do not want to wait? Pick Apple Intelligence above: it "
                     + "needs no download and works immediately. Choosing it "
@@ -479,22 +583,38 @@ final class Onboarding: NSObject, NSWindowDelegate {
         case .ready:
             v.addArrangedSubview(status(true, granted: "Ready to dictate.", pending: ""))
         case .failed(let why):
+            // No Try again button here. The primary button says it now, and
+            // two buttons a centimetre apart doing the same thing is a
+            // question about which one is the real one.
             v.addArrangedSubview(status(false, granted: "", pending: why))
-            v.addArrangedSubview(
-                NSButton(title: "Try again", target: self, action: #selector(retry)))
         }
     }
 
     @objc private func pickModel(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue,
-              let choice = ModelChoice.named(id),
-              choice.id != Settings.choice.id else { return }
+              let choice = ModelChoice.named(id) else { return }
+        // Not an early return on "same as the current choice". The first pick
+        // is usually the engine that was already the fallback, and treating it
+        // as a no-op left the radio button filled, the choice unrecorded and
+        // Continue disabled with nothing to explain why.
+        let firstPick = !Settings.modelChosen
+        guard firstPick || choice.id != Settings.choice.id else { return }
         Settings.choice = choice
-        owner?.reloadModel()
+
+        // Choosing is not agreeing to a download; the button below is where
+        // that is asked. An engine already on disk has nothing to agree to, so
+        // it loads at once and the button becomes a plain Continue.
+        if choice.isDownloaded {
+            owner?.reloadModel()
+        } else {
+            owner?.idleModel()
+        }
         render()
     }
 
-    @objc private func retry() {
+    /// The primary button on the model step: fetch and load the chosen engine,
+    /// and the way back from a failed attempt.
+    @objc private func startModel() {
         owner?.reloadModel()
         render()
     }
@@ -550,7 +670,8 @@ final class Onboarding: NSObject, NSWindowDelegate {
         v.addArrangedSubview(resultRow)
 
         if !didDictate {
-            v.addArrangedSubview(help(expanded: tryHelpOpen,
+            v.addArrangedSubview(help("Not working?", showing: "troubleshooting",
+                                      expanded: tryHelpOpen,
                                       toggle: #selector(toggleTryHelp)) { inner in
                 inner.addArrangedSubview(self.hint(
                     "The chord has to be held together and released. Left and "
@@ -748,7 +869,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
         // Name the thing to do rather than offering a Continue that cannot be
         // pressed. "Grant microphone access" answers "what am I waiting for?"
         // where a greyed-out Continue only poses it.
-        let pending = ready ? nil : s.action?()
+        let pending = ready ? nil : s.action?(self)
         nextButton.title = pending
             ?? (step == steps.count - 1 ? "Done" : "Continue")
         // A step with its own action button stays clickable so it can trigger
@@ -805,19 +926,29 @@ final class Onboarding: NSObject, NSWindowDelegate {
         switch owner?.status {
         case .ready:  readiness = "ready"
         case .failed: readiness = "failed"
+        // Distinct from a download in progress, which is the difference
+        // between "press the button" and a progress bar. Folded together, the
+        // step that started a download kept the body it was built with, so the
+        // bar was never created and the download ran invisibly.
+        case .idle:   readiness = "idle"
         default:      readiness = "busy"
         }
-        return "\(step)|\(steps[step].canAdvance(self))|\(readiness)"
+        // The chosen engine is structural too: the lines under the radio
+        // buttons name it and its download size, and "nothing chosen yet" is a
+        // different screen from any of them.
+        let engine = Settings.modelChosen ? Settings.choice.id : "unchosen"
+        return "\(step)|\(steps[step].canAdvance(self))|\(readiness)|\(engine)"
     }
 
     @objc private func next() {
         // When the step is not satisfied the button is its action, not
         // navigation: pressing "Request microphone access" must request it.
         let s = steps[step]
-        if !s.canAdvance(self), s.action?() != nil {
+        if !s.canAdvance(self), s.action?(self) != nil {
             switch step {
-            case 1: requestMic()
-            case 2: openAccessibility()
+            case At.mic: requestMic()
+            case At.accessibility: openAccessibility()
+            case At.model: startModel()
             default: break
             }
             return
@@ -832,11 +963,13 @@ final class Onboarding: NSObject, NSWindowDelegate {
         }
         step += 1
         Settings.onboardingStep = step
-        // Leaving Welcome is the consent: the step said a 2.4 GB download was
-        // coming, and pressing Continue is the user agreeing to it. Starting
-        // here rather than at the model step keeps the download overlapping
-        // the permission steps, so it is usually done on arrival.
-        if step == 1 { owner?.startModelLoadIfIdle() }
+        // Nothing is started here. Leaving Welcome used to begin the default
+        // engine's 2.4 GB download so it would overlap the permission steps,
+        // which is a good trade only if the default is the engine you wanted.
+        // For everyone else it was a few hundred megabytes of somebody's
+        // connection spent on a model they were about to replace, and on a
+        // slow or metered one it made the whole choice moot. The model step
+        // asks first now.
         render()
     }
 
@@ -890,7 +1023,16 @@ final class Onboarding: NSObject, NSWindowDelegate {
         step = 0
         // Reaching the end is not required; permissions can be finished later
         // from Settings.
-        if Permissions.allGranted { Settings.onboarded = true }
+        //
+        // An engine that can actually run is required, though, and this used to
+        // ask only about permissions. `onboarded` is what makes the next launch
+        // load a model without asking, so setting it for somebody who closed
+        // this window before choosing meant the fallback quietly downloading
+        // 2.4 GB at the next launch: the very thing the model step now refuses
+        // to do. Left false, setup reopens on the model step and asks.
+        if Permissions.allGranted, Settings.modelChosen, Settings.choice.isDownloaded {
+            Settings.onboarded = true
+        }
         onFinish?()
     }
 }

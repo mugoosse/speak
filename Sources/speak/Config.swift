@@ -31,33 +31,65 @@ struct ModelChoice {
 
     let id: String
     let title: String
-    let detail: String
+    /// What the engine is good and bad at, without its size.
+    let blurb: String
     /// Empty for the Apple engine.
     let repo: String
     var kind: Kind = .parakeet
+    /// Named in full, and empty unless the coverage is a real question.
+    ///
+    /// v2 is English and Apple's list is the system's, which the Language
+    /// picker already shows. v3's "25 languages" is a claim nobody can check
+    /// from the outside, and choosing between a 2.4 GB English model and a
+    /// 2.4 GB multilingual one is a decision about whether *your* language is
+    /// in that 25, which the number alone does not answer.
+    var languages: [String] = []
     /// Measured on disk. Used only to turn a byte count into a percentage
     /// while downloading, so being a few MB out is harmless.
     let approxBytes: Int64
 
-    /// Titles name the model, details describe what it can do. Mixing the two
+    /// The blurb with the download size on the end, or without one for an
+    /// engine that has nothing to fetch.
+    ///
+    /// Formatted from `approxBytes` rather than written out, because the two
+    /// were written out and disagreed: the list said "2.4 GB download" while
+    /// the line asking permission for it said 2.51 GB, on the same screen. One
+    /// of those was a measurement and the other was a memory of one.
+    var detail: String {
+        guard kind != .apple else { return blurb }
+        return blurb + " · \(Self.humanBytes(approxBytes)) download"
+    }
+
+    /// Titles name the model, blurbs describe what it can do. Mixing the two
     /// (a "Multilingual" option next to an "Apple Intelligence" one) makes the
     /// list read as though it is comparing different kinds of thing.
     static let all: [ModelChoice] = {
         var list: [ModelChoice] = [
             .init(id: "v2", title: "Parakeet v2",
-                  detail: "English only · most accurate · 2.4 GB download",
+                  blurb: "English only · most accurate",
                   repo: "mlx-community/parakeet-tdt-0.6b-v2",
                   approxBytes: 2_471_601_146),
             .init(id: "v3", title: "Parakeet v3",
-                  detail: "25 languages · may misdetect short clips"
-                        + " · 2.4 GB download",
+                  blurb: "25 languages · may misdetect short clips",
                   repo: "mlx-community/parakeet-tdt-0.6b-v3",
+                  // The model card's 25, alphabetically rather than in its
+                  // own order: this list is read to answer "is mine here?",
+                  // and that question is answered by scanning, not by
+                  // reading. Note Irish is absent, so it is not simply the
+                  // EU's official languages.
+                  languages: [
+                    "Bulgarian", "Croatian", "Czech", "Danish", "Dutch",
+                    "English", "Estonian", "Finnish", "French", "German",
+                    "Greek", "Hungarian", "Italian", "Latvian", "Lithuanian",
+                    "Maltese", "Polish", "Portuguese", "Romanian", "Russian",
+                    "Slovak", "Slovenian", "Spanish", "Swedish", "Ukrainian",
+                  ],
                   approxBytes: 2_508_579_601),
         ]
         if #available(macOS 26.0, *) {
             list.append(.init(
                 id: "apple", title: "Apple Intelligence",
-                detail: "Built in · no download · ready immediately · less accurate",
+                blurb: "Built in · no download · ready immediately · less accurate",
                 repo: "", kind: .apple, approxBytes: 0))
         }
         return list
@@ -71,9 +103,47 @@ struct ModelChoice {
 
     static func named(repo: String) -> ModelChoice? { all.first { $0.repo == repo } }
 
-    private static var hubRoot: URL {
-        URL(fileURLWithPath: NSHomeDirectory())
+    /// Where the Hugging Face client keeps its cache, resolved the way the
+    /// client resolves it.
+    ///
+    /// Not simply `~/.cache/huggingface/hub`. swift-huggingface checks
+    /// `HF_HUB_CACHE`, then `HF_HOME`, then the standard location, and anyone
+    /// who runs other local ML tooling is liable to have set one of those.
+    /// Speak looked only in the standard place, so with `HF_HOME` pointing
+    /// elsewhere it found an earlier copy of the weights, said "already
+    /// downloaded", and then sat on "loading model…" for four minutes while
+    /// the library quietly fetched 2.4 GB into the other cache: no progress
+    /// bar, because as far as Speak knew nothing was being downloaded. The
+    /// disk-space figures in Settings were measuring the wrong directory for
+    /// the same reason.
+    ///
+    /// Every rule here is the library's, including the sandbox branch that
+    /// Speak does not currently take. Agreement is the whole point; a "more
+    /// sensible" rule on this side is how the two came apart in the first
+    /// place.
+    static var hubRoot: URL {
+        let env = ProcessInfo.processInfo.environment
+        if let cache = env["HF_HUB_CACHE"] {
+            return URL(fileURLWithPath: NSString(string: cache).expandingTildeInPath)
+        }
+        if let home = env["HF_HOME"] {
+            return URL(fileURLWithPath: NSString(string: home).expandingTildeInPath)
+                .appendingPathComponent("hub")
+        }
+        if env["APP_SANDBOX_CONTAINER_ID"] != nil {
+            return URL.cachesDirectory
+                .appendingPathComponent("huggingface")
+                .appendingPathComponent("hub")
+        }
+        return URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".cache/huggingface/hub")
+    }
+
+    /// The cache root as a person would write it, for UI that names it.
+    static var hubRootDisplay: String {
+        let path = hubRoot.deletingLastPathComponent().path
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 
     /// Where mlx-audio keeps its own copy, and what it checks before deciding
@@ -211,11 +281,13 @@ enum ModelStatus {
     /// handler, and hands the populated cache to `loadModel` afterwards.
     /// Elapsed time is kept as a fallback and as reassurance that something is
     /// still happening.
-    /// Nothing has been asked for yet. Only reachable on a first run, before
-    /// the user has been told a 2.4 GB download is coming: starting it at
-    /// launch would pull that much of somebody's bandwidth before they had
-    /// seen a single word of explanation, and before they had the chance to
-    /// pick the engine that needs no download at all.
+    /// Nothing has been asked for yet.
+    ///
+    /// Reachable on a first run, and for as long as setup's model step is
+    /// showing an engine whose weights are not on disk. Nothing downloads
+    /// until the user presses the button that says so: the default is only a
+    /// default, and starting a 2.4 GB fetch of it would spend somebody's
+    /// bandwidth on an engine they had not chosen and might not want.
     case idle
     case downloading(elapsed: TimeInterval, total: Int64,
                      received: Int64?, fraction: Double?)
@@ -347,6 +419,22 @@ enum Settings {
             return c
         }
         set { UserDefaults.standard.set(newValue.id, forKey: modelKey) }
+    }
+
+    /// True once an engine has actually been chosen, rather than Speak having
+    /// fallen back to one.
+    ///
+    /// Setup will not continue past the model step until this is true, and the
+    /// distinction matters: `choice` cannot express "nobody has said", so
+    /// without this the radio button on the default reads as a decision the
+    /// user made, and the 2.4 GB it implies as one they agreed to.
+    ///
+    /// Derived rather than stored. The presence of the key is the record of an
+    /// explicit pick, since only the two model pickers ever write it, and
+    /// having finished setup is the same evidence for anyone who came through
+    /// the old flow, where the default was downloaded without being offered.
+    static var modelChosen: Bool {
+        UserDefaults.standard.string(forKey: modelKey) != nil || onboarded
     }
 
     static var activeRepo: String { envOverride ?? choice.repo }

@@ -453,6 +453,10 @@ final class GeneralPane: Pane {
 final class ModelPane: Pane {
     weak var app: App?
     private var localePopup: NSPopUpButton!
+    /// Held on the pane rather than in the view, because this pane rebuilds
+    /// itself on every model status change: a download ticking away would
+    /// otherwise fold the list shut once a second while it was being read.
+    private var languagesOpen = false
 
     /// Mirror the app's model state so a download is visible from the screen
     /// where you started it.
@@ -490,6 +494,27 @@ final class ModelPane: Pane {
             let d = caption(line)
             d.textColor = .secondaryLabelColor
             stack.addArrangedSubview(d)
+
+            // Which 25, spelled out. The number is what the engine list has
+            // room for, but the question anyone actually has is whether their
+            // language is in it, and that cannot be answered by a count.
+            if !choice.languages.isEmpty {
+                let disclose = NSButton(
+                    title: (languagesOpen ? "Hide the " : "Show the ")
+                         + "\(choice.languages.count) languages",
+                    target: self, action: #selector(toggleLanguages))
+                disclose.bezelStyle = .inline
+                disclose.controlSize = .small
+                stack.addArrangedSubview(row([disclose]))
+                if languagesOpen {
+                    stack.addArrangedSubview(
+                        caption(choice.languages.joined(separator: " · ")))
+                    stack.addArrangedSubview(caption(
+                        "Detected automatically. The Language picker does not "
+                        + "appear for Parakeet because the model has no "
+                        + "language setting to offer."))
+                }
+            }
         }
 
         // Directly under the engine list, not after Language. It reports the
@@ -547,9 +572,13 @@ final class ModelPane: Pane {
             link.controlSize = .small
             stack.addArrangedSubview(link)
 
+            // The real path, not the usual one. HF_HOME and HF_HUB_CACHE move
+            // it, and naming a directory the weights are not in is worse than
+            // naming none.
             stack.addArrangedSubview(caption(
-                "Kept in ~/.cache/huggingface. The download is the only time "
-                + "Speak uses the network; transcription is always local."))
+                "Kept in \(ModelChoice.hubRootDisplay). The download is the "
+                + "only time Speak uses the network; transcription is always "
+                + "local."))
         }
 
         // Disk space last, because it is housekeeping rather than a choice.
@@ -626,6 +655,11 @@ final class ModelPane: Pane {
         guard a.runModal() == .alertFirstButtonReturn else { return }
 
         for choice in removable { choice.removeFromDisk() }
+        rebuild()
+    }
+
+    @objc private func toggleLanguages() {
+        languagesOpen.toggle()
         rebuild()
     }
 

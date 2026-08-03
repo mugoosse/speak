@@ -49,8 +49,8 @@ the in-app updater. The two do not fight.
   late 2020. There is no Intel version.
 - **macOS 14 or later.** The Apple Intelligence engine additionally needs
   macOS 26.
-- **About 5 GB free**, for the speech model Speak downloads once on first run.
-  You can skip that entirely by choosing Apple Intelligence instead.
+- **About 5 GB free**, for the speech model, if you choose Parakeet. You can
+  skip that entirely by choosing Apple Intelligence instead.
 
 ### First run
 
@@ -59,9 +59,12 @@ A setup window walks through it. Speak asks for two permissions:
 1. **Microphone**, so it can hear you.
 2. **Accessibility**, so your shortcut works while you are in another app.
 
-Then it downloads the speech model. That takes a few minutes on a normal
-connection, and it is the only time Speak uses the internet. Once the model is
-on disk you can turn the wifi off and it still works.
+Then it asks which speech model to use. **Nothing is downloaded until you have
+chosen one and pressed the button that names it**, so a 2.4 GB Parakeet is
+never fetched on the assumption that you wanted the default. The download takes
+a few minutes on a normal connection, and it is the only time Speak uses the
+internet: once the model is on disk you can turn the wifi off and it still
+works. Apple Intelligence needs no download at all.
 
 If the shortcut does nothing afterwards, see
 [Troubleshooting](#troubleshooting). There is one common macOS quirk with a
@@ -133,9 +136,28 @@ Choose in **Settings → Model**, or during setup.
 
 | Engine | Trade-off |
 |---|---|
-| **Parakeet v2** (default) | English only · most accurate · 2.4 GB download |
-| **Parakeet v3** | 25 languages · may misdetect short clips · 2.4 GB download |
+| **Parakeet v2** (default) | English only · most accurate · 2.47 GB download |
+| **Parakeet v3** | 25 languages · may misdetect short clips · 2.51 GB download |
 | **Apple Intelligence** | Built in · no download · ready immediately · less accurate |
+
+Setup downloads nothing until you pick one, and neither does switching here: the
+button names the engine and its size, and it is the only thing that starts a
+transfer.
+
+### The 25 languages
+
+Parakeet v3 recognises these, and detects which one you are speaking on its own.
+**Settings → Model → Show the 25 languages** lists them in the app too, and so
+does the setup step where you choose.
+
+Bulgarian · Croatian · Czech · Danish · Dutch · English · Estonian · Finnish ·
+French · German · Greek · Hungarian · Italian · Latvian · Lithuanian · Maltese ·
+Polish · Portuguese · Romanian · Russian · Slovak · Slovenian · Spanish ·
+Swedish · Ukrainian
+
+Note that Irish is not among them, so this is not simply the EU's official
+languages. If yours is missing, Apple Intelligence covers a different set, which
+its own Language picker lists.
 
 ### Where the Parakeet model comes from
 
@@ -348,6 +370,9 @@ Parakeet is stored **twice**, about 4.6 GB total: once in the Hugging Face blob
 cache (`~/.cache/huggingface/hub/models--…`) and once in mlx-audio's own
 directory (`~/.cache/huggingface/hub/mlx-audio/…`). That duplication is
 mlx-audio's design, not something Speak controls.
+
+If you have set `HF_HUB_CACHE` or `HF_HOME`, the models go there instead, and
+Speak follows: Settings → Model names the directory actually in use.
 
 Apple Intelligence adds nothing of its own; its assets are system-managed and
 usually already present because system dictation uses them.
