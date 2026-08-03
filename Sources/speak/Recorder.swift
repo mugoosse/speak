@@ -69,7 +69,24 @@ final class Recorder {
         }
 
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            // Undo the tap before rethrowing. `stop()` will not do it: it
+            // guards on `isRecording`, which is still false because the line
+            // above threw. The tap therefore outlived the failure, and the next
+            // attempt installed a second one on the same bus, which
+            // AVAudioEngine does not allow. One transient microphone error, a
+            // device switching away mid-session is enough, left dictation
+            // broken until the app was relaunched.
+            input.removeTap(onBus: 0)
+            engine.stop()
+            // The engine caches the input format, so a device that comes back
+            // in a different state is only picked up after a reset.
+            engine.reset()
+            converter = nil
+            throw error
+        }
         isRecording = true
     }
 

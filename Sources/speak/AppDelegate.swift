@@ -11,6 +11,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var eventTap: CFMachPort?
     private var comboLatched = false
     private var ready = false
+    /// Set when the microphone refuses to start, cleared by the next recording
+    /// that does. Separate from `status`, which is about the speech model.
+    private var micError: String?
     private var downloadWatch: Timer?
     private var accessibilityWatch: Timer?
     private var loadTask: Task<Void, Never>?
@@ -529,10 +532,25 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // yet, and a silent beep explains nothing.
         switch status {
         case .ready:
-            let hint = NSMenuItem(title: "\(Shortcut.description) toggles dictation",
-                                  action: nil, keyEquivalent: "")
-            hint.image = symbol("keyboard")
-            menu.addItem(hint)
+            // A microphone failure is not a model failure, so it does not
+            // belong in `status`, but it does have to reach the menu. Without
+            // this the icon showed a warning triangle while the menu carried on
+            // saying the shortcut worked, and the only account of what went
+            // wrong was a tooltip nobody thinks to hover.
+            if let micError {
+                let item = NSMenuItem(title: micError, action: nil, keyEquivalent: "")
+                item.image = symbol("exclamationmark.triangle")
+                menu.addItem(item)
+                let hint = NSMenuItem(title: "Press \(Shortcut.description) to try again",
+                                      action: nil, keyEquivalent: "")
+                hint.image = symbol("arrow.clockwise")
+                menu.addItem(hint)
+            } else {
+                let hint = NSMenuItem(title: "\(Shortcut.description) toggles dictation",
+                                      action: nil, keyEquivalent: "")
+                hint.image = symbol("keyboard")
+                menu.addItem(hint)
+            }
         case .idle:
             let item = NSMenuItem(title: "Finish setup to start dictating",
                                   action: #selector(openOnboarding), keyEquivalent: "")
@@ -831,6 +849,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             recorder.onFirstBuffer = { Cue.start() }
             do {
                 try recorder.start()
+                micError = nil
                 setIcon(.recording, "recording…")
                 if Settings.showIndicator { indicator.show(.recording) }
                 // Load the polishing model and the word list while the user is
@@ -841,8 +860,13 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     await polisher.prewarm()
                 }
             } catch {
+                // The raw CoreAudio error is unreadable and names nothing the
+                // user can act on, so the menu gets a sentence and the tooltip
+                // keeps the detail for a bug report.
+                micError = "The microphone could not be started"
                 setIcon(.failed, "mic error: \(error)")
                 indicator.hide()
+                Cue.failed()
             }
         }
     }
