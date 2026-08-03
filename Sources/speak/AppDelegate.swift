@@ -32,7 +32,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func installHotkeyIfNeeded() {
         guard eventTap == nil, Permissions.accessibility else { return }
         installHotkey()
-        setIcon(ready ? "mic" : "mic.slash", ready ? "ready" : "loading model…")
+        setIcon(ready ? .ready : .idle, ready ? "ready" : "loading model…")
         refreshMenu()
     }
 
@@ -89,7 +89,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
-        setIcon("mic.slash", "loading model…")
+        setIcon(.idle, "loading model…")
 
         // Start-at-login is on by default for new installations only. Record
         // the decision before onboarding changes `Settings.onboarded`, and
@@ -123,7 +123,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else if Permissions.allGranted {
             installHotkey()
         } else {
-            setIcon("exclamationmark.triangle", "permissions needed")
+            setIcon(.failed, "permissions needed")
         }
         refreshMenu()
 
@@ -294,7 +294,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             if Permissions.allGranted, self.eventTap == nil {
                 self.installHotkey()
-                self.setIcon(self.ready ? "mic" : "mic.slash",
+                self.setIcon(self.ready ? .ready : .idle,
                              self.ready ? "ready" : "loading model…")
             }
             self.refreshMenu()
@@ -471,11 +471,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             statusMenuItem?.title = s.summary.prefix(1).uppercased() + s.summary.dropFirst()
         }
         switch s {
-        case .idle:        setIcon("mic.slash", s.summary)
-        case .downloading: setIcon("arrow.down.circle", s.summary)
-        case .loading:     setIcon("mic.slash", s.summary)
-        case .ready:       setIcon("mic", s.summary)
-        case .failed:      setIcon("exclamationmark.triangle", s.summary)
+        case .idle:        setIcon(.idle, s.summary)
+        case .downloading: setIcon(.downloading, s.summary)
+        case .loading:     setIcon(.idle, s.summary)
+        case .ready:       setIcon(.ready, s.summary)
+        case .failed:      setIcon(.failed, s.summary)
         }
         onStatusChange?(s)
     }
@@ -487,6 +487,16 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func refreshMenu() {
         guard let menu = statusItem.menu else { return }
         menu.removeAllItems()
+
+        // Say whose menu this is. Someone who cannot place an icon in their
+        // menu bar clicks it to find out, and until this row existed the only
+        // answer was "About Speak", five items down past the shortcut, the
+        // transcripts and Settings.
+        let name = NSMenuItem(title: "Speak", action: nil, keyEquivalent: "")
+        name.isEnabled = false
+        name.image = MenuBarIcon.ready.menuImage
+        menu.addItem(name)
+        menu.addItem(.separator())
 
         // Until the model is usable, say so first: the shortcut does nothing
         // yet, and a silent beep explains nothing.
@@ -589,10 +599,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return img
     }
 
-    private func setIcon(_ symbolName: String, _ tip: String) {
-        statusItem.button?.image = NSImage(
-            systemSymbolName: symbolName, accessibilityDescription: tip)
-        statusItem.button?.toolTip = "Speak — \(tip)"
+    private func setIcon(_ icon: MenuBarIcon, _ tip: String) {
+        let image = icon.image
+        image.accessibilityDescription = tip
+        statusItem.button?.image = image
+        statusItem.button?.toolTip = "Speak: \(tip)"
         log(tip)
     }
 
@@ -663,7 +674,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             },
             userInfo: me
         ) else {
-            setIcon("exclamationmark.triangle", "event tap refused; check Accessibility")
+            setIcon(.failed, "event tap refused; check Accessibility")
             return
         }
 
@@ -734,10 +745,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func toggle() {
         if recorder.isRecording {
-            setIcon("hourglass", "transcribing…")
+            setIcon(.transcribing, "transcribing…")
             indicator.show(.transcribing)
             guard let pcm = recorder.stop() else {
-                setIcon("mic", "ready"); indicator.hide(); return
+                setIcon(.ready, "ready"); indicator.hide(); return
             }
             let seconds = Double(pcm.count) / SAMPLE_RATE
             Task {
@@ -749,10 +760,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     pb.setString(text, forType: .string)
                     if Settings.autoPaste { paste() }
                     History.append(.init(date: Date(), duration: seconds, text: text))
-                    setIcon("mic", "copied \(text.split(separator: " ").count) words")
+                    setIcon(.ready, "copied \(text.split(separator: " ").count) words")
                     Cue.done()
                 } else {
-                    setIcon("mic", "nothing transcribed")
+                    setIcon(.ready, "nothing transcribed")
                     Cue.failed()
                 }
                 // Onboarding's try-it-out step listens here, so the user sees
@@ -768,10 +779,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             recorder.onFirstBuffer = { Cue.start() }
             do {
                 try recorder.start()
-                setIcon("record.circle", "recording…")
+                setIcon(.recording, "recording…")
                 if Settings.showIndicator { indicator.show(.recording) }
             } catch {
-                setIcon("exclamationmark.triangle", "mic error: \(error)")
+                setIcon(.failed, "mic error: \(error)")
                 indicator.hide()
             }
         }
@@ -787,7 +798,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = recorder.stop()
         indicator.hide()
         Cue.cancel()
-        setIcon("mic", "cancelled")
+        setIcon(.ready, "cancelled")
     }
 
     private func paste() {

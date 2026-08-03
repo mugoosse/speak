@@ -116,11 +116,16 @@ menu bar icon tracks state:
 
 | Icon | Meaning |
 |---|---|
-| `mic` | ready |
-| red dot | recording |
+| the I-beam | ready |
+| the I-beam, crossed out | loading the model, or setup unfinished |
+| the I-beam, knocked out of a filled square | recording |
 | hourglass | transcribing |
 | download arrow | fetching the model, with elapsed time |
 | warning triangle | see the menu for what went wrong |
+
+The mark is Speak's own I-beam, the same one on the app icon, so it is possible
+to tell which app it belongs to. Clicking it names the app at the top of the
+menu.
 
 ## Engines
 

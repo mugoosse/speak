@@ -45,6 +45,7 @@ touching UI code.
 |---|---|
 | `main.swift` | entry point and the `--transcribe` CLI mode |
 | `AppDelegate.swift` | menu bar, event tap, dictation toggle, model state |
+| `MenuBarIcon.swift` | the status item artwork: one case per state, drawn |
 | `Config.swift` | `ModelChoice`, `Settings`, `Shortcut`, `Modifier`, `KeyName`, `ModelStatus` |
 | `Recorder.swift` | `AVAudioEngine` capture to 16 kHz mono Float32 |
 | `Transcriber.swift` | routes to Parakeet (MLX) or Apple Intelligence |
