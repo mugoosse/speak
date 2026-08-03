@@ -4,13 +4,23 @@ import AppKit
 // Settings, as a native toolbar-tabbed window
 // ---------------------------------------------------------------------------
 
+/// The tabs, in the order they appear.
+///
+/// Named rather than numbered because the numbers were load-bearing and
+/// invisible: the menu's "About Speak" opened tab 4, so inserting a tab
+/// anywhere above it would have quietly opened Permissions instead.
+enum SettingsTab: Int {
+    case general, model, text, history, permissions, about
+}
+
 @MainActor
 final class SettingsWindow: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var tabs: NSTabViewController?
     weak var app: App?
 
-    func show(selecting index: Int = 0) {
+    func show(selecting tab: SettingsTab = .general) {
+        let index = tab.rawValue
         if let w = window {
             tabs?.selectedTabViewItemIndex = index
             w.makeKeyAndOrderFront(nil)
@@ -25,14 +35,17 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         // the selected child's `title`; without one the window reads "Untitled".
         let general = GeneralPane(); general.app = app; general.title = "General"
         let model = ModelPane(); model.app = app; model.title = "Model"
+        let text = TextPane(); text.title = "Text"
         let history = HistoryPane(); history.title = "History"
         let permissions = PermissionsPane(); permissions.app = app
         permissions.title = "Permissions"
         let about = AboutPane(); about.app = app; about.title = "About"
 
+        // Order must match SettingsTab.
         for (vc, title, symbol) in [
             (general as NSViewController, "General", "gearshape"),
             (model as NSViewController, "Model", "waveform"),
+            (text as NSViewController, "Text", "textformat"),
             (history as NSViewController, "History", "clock"),
             (permissions as NSViewController, "Permissions", "lock.shield"),
             (about as NSViewController, "About", "info.circle"),
@@ -73,13 +86,44 @@ class Pane: NSViewController {
     let stack = NSStackView()
 
 
+    /// Every pane is this tall, and scrolls if it holds more.
+    ///
+    /// The window sizes itself to the tallest pane, so before this a pane that
+    /// outgrew the screen took the whole Settings window with it: the buttons
+    /// along the bottom ended up below the edge of the display with no way to
+    /// reach them, and the window is not resizable. Chosen to fit a 13 inch
+    /// laptop with the menu bar and the Dock still on screen.
+    private static let paneHeight: CGFloat = 600
+
     override func loadView() {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14
         stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 22, right: 24)
-        view = stack
-        view.setFrameSize(NSSize(width: 540, height: 500))
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = false
+        scroll.documentView = stack
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            // Never shorter than the visible area. A clip view is not flipped,
+            // so a document view smaller than it is placed at the bottom, and
+            // Permissions duly hung off the floor of the window. Making the
+            // stack fill the height instead hands the slack to the spacer that
+            // `buildContents` appends, which is what has always kept a short
+            // pane top-aligned.
+            stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.heightAnchor),
+            scroll.widthAnchor.constraint(equalToConstant: 540),
+            scroll.heightAnchor.constraint(equalToConstant: Self.paneHeight),
+        ])
+
+        view = scroll
         buildContents()
     }
 
@@ -887,7 +931,10 @@ final class HistoryPane: Pane, NSTableViewDataSource, NSTableViewDelegate {
             label.textColor = .secondaryLabelColor
         } else {
             label.stringValue = e.text.replacingOccurrences(of: "\n", with: " ")
-            label.toolTip = e.text
+            // Show what was said alongside what was pasted whenever polishing
+            // or a correction changed it, so a rewrite that went wrong is
+            // recoverable without opening the file.
+            label.toolTip = e.raw.map { "\(e.text)\n\nAs transcribed:\n\($0)" } ?? e.text
         }
 
         cell.addSubview(label)

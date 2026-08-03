@@ -12,11 +12,19 @@ final class RecordingIndicator {
     enum State {
         case recording
         case transcribing
+        /// `of` is the number of chunks a long dictation was split into, and is
+        /// 1 for everything short enough to go in one request.
+        case polishing(step: Int, of: Int)
 
         var text: String {
             switch self {
             case .recording:    return "Listening"
             case .transcribing: return "Transcribing…"
+            // Counted only when there is more than one, because "Polishing 1/1"
+            // is noise. When there are several the wait is long enough that a
+            // number is the difference between working and stuck.
+            case .polishing(let step, let total):
+                return total > 1 ? "Polishing \(step)/\(total)…" : "Polishing…"
             }
         }
     }
@@ -42,7 +50,11 @@ final class RecordingIndicator {
             timeLabel.isHidden = false
             dot?.layer?.backgroundColor = NSColor.systemRed.cgColor
             startTimers()
-        case .transcribing:
+        // Both are the same colour on purpose. The dot answers one question,
+        // "is the microphone live", and the answer is no for both of these.
+        // Splitting the colour would imply a distinction that does not matter
+        // to anyone glancing at it.
+        case .transcribing, .polishing:
             timeLabel.isHidden = true
             dot?.layer?.backgroundColor = NSColor.systemOrange.cgColor
             stopTimers()

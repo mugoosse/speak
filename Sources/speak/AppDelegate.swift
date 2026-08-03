@@ -7,6 +7,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let recorder = Recorder()
     private let transcriber = Transcriber()
+    private let polisher = Polisher()
     private var eventTap: CFMachPort?
     private var comboLatched = false
     private var ready = false
@@ -626,10 +627,9 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openSettings() { settings.show() }
-    /// General is the first tab, and the shortcut lives at the top of it.
-    func openSettingsAtShortcut() { settings.show(selecting: 0) }
-    /// About is the last tab, so open Settings already showing it.
-    @objc private func openAbout() { settings.show(selecting: 4) }
+    /// The shortcut lives at the top of General.
+    func openSettingsAtShortcut() { settings.show(selecting: .general) }
+    @objc private func openAbout() { settings.show(selecting: .about) }
     @objc private func openOnboarding() { startOnboarding() }
     @objc private func retryModel() { reloadModel() }
 
@@ -770,14 +770,40 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             let seconds = Double(pcm.count) / SAMPLE_RATE
             Task {
-                let text = await transcriber.transcribe(pcm)
+                let raw = await transcriber.transcribe(pcm)
+                var text = raw
+                if let raw {
+                    // Corrections run either side of polishing, and still run
+                    // when there is no polishing to do.
+                    let cleaned = await CustomDictionary.applyAround(raw) { corrected in
+                        // Announced from inside the polisher rather than guessed
+                        // at from the setting: this fires only when a request is
+                        // actually about to be made, so nobody whose Mac cannot
+                        // polish is told that it is polishing.
+                        await polisher.polish(corrected) { [weak self] step, total in
+                            Task { @MainActor in
+                                self?.setIcon(.transcribing, "polishing…")
+                                self?.indicator.show(.polishing(step: step, of: total))
+                            }
+                        }
+                    }
+                    // Last, so it sees whatever the model and the dictionary
+                    // settled on rather than the engine's first guess.
+                    text = Punctuation.trimFragment(cleaned)
+                }
+                // Held up through polishing: it means "still working", and the
+                // wait it is covering is now longer than the transcription.
                 indicator.hide()
                 if let text {
                     let pb = NSPasteboard.general
                     pb.clearContents()
                     pb.setString(text, forType: .string)
                     if Settings.autoPaste { paste() }
-                    History.append(.init(date: Date(), duration: seconds, text: text))
+                    // The raw transcript is kept only when something changed it,
+                    // so history stays a record of what was said as well as what
+                    // was pasted. Nothing to compare against otherwise.
+                    History.append(.init(date: Date(), duration: seconds, text: text,
+                                         raw: text == raw ? nil : raw))
                     setIcon(.ready, "copied \(text.split(separator: " ").count) words")
                     Cue.done()
                 } else {
@@ -799,6 +825,13 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try recorder.start()
                 setIcon(.recording, "recording…")
                 if Settings.showIndicator { indicator.show(.recording) }
+                // Load the polishing model and the word list while the user is
+                // still talking. The first request to a cold model is the slow
+                // one, and this spends time they were going to spend anyway.
+                Task {
+                    CustomDictionary.warm()
+                    await polisher.prewarm()
+                }
             } catch {
                 setIcon(.failed, "mic error: \(error)")
                 indicator.hide()

@@ -182,6 +182,17 @@
 
   .steps { display: grid; gap: 20px; grid-template-columns: repeat(3, 1fr); }
 
+  .steps.two { grid-template-columns: repeat(2, 1fr); }
+
+  .said {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .said.before { color: var(--grey-dim); }
+  .said.after  { color: var(--text); }
+
   .step {
     background: var(--ink-raised);
     border: 1px solid var(--line);
@@ -257,7 +268,10 @@
     h1 { font-size: 42px; }
     .tagline { font-size: 20px; }
     .lede { font-size: 16.5px; }
-    .steps { grid-template-columns: 1fr; }
+    /* .steps.two is listed too: it is the more specific selector, so the
+       single-column rule above would otherwise lose to it and leave two
+       cramped columns on a phone. */
+    .steps, .steps.two { grid-template-columns: 1fr; }
     .demo { padding: 20px 16px; }
     section { padding: 44px 0; }
     h2 { font-size: 24px; }
@@ -321,6 +335,32 @@
   </section>
 
   <section>
+    <h2>Tidied up, if you want it</h2>
+    <p class="sub">Both off until you turn them on.</p>
+    <div class="callout">
+      <p class="said before">um so i think we should uh basically try the the
+      parakeet model and see if it you know works better</p>
+      <p class="said after">So I think we should basically try the Parakeet
+      model and see if it works better.</p>
+    </div>
+    <div class="steps two" style="margin-top:20px">
+      <div class="step">
+        <h3>AI polish</h3>
+        <p>Punctuation, filler words, false starts and paragraphs, using the
+        model built into macOS. Needs macOS 26. If it fails or takes too long
+        you get the plain transcript, so a dictation is never lost.</p>
+      </div>
+      <div class="step">
+        <h3>Your dictionary</h3>
+        <p>Teach it the names it keeps getting wrong, and set exact
+        replacements that run on every transcript. The replacements need no
+        model, so they work on any supported macOS. Import brings across a
+        dictionary you already built elsewhere.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
     <h2>Your voice never leaves your Mac</h2>
     <p class="sub">Not as a policy. As an architecture.</p>
     <div class="callout">
@@ -331,10 +371,14 @@
         that could hold your recordings, even in principle.
       </p>
       <p>
+        Tidying up is local too. The optional polish pass uses the model built
+        into macOS, running on your Mac like everything else here, so a polished
+        transcript has still never left the machine.
+      </p>
+      <p>
         The trade is worth stating plainly: when a local model gets a word
-        wrong, it is wrong. There is no cloud fallback to catch it, and there
-        is no custom dictionary yet, so unusual names come out however the
-        model heard them.
+        wrong, it is wrong. There is no cloud fallback to catch it. A dictionary
+        of your own names and jargon is the fix, and it is built in.
       </p>
     </div>
   </section>
@@ -349,8 +393,8 @@
       </li>
       <li>
         <span class="k">&#9679;</span>
-        <span class="v"><b>macOS 14 or later.</b> The Apple Intelligence engine
-        additionally needs macOS 26.</span>
+        <span class="v"><b>macOS 14 or later.</b> The Apple Intelligence engine,
+        and the optional polish pass, additionally need macOS 26.</span>
       </li>
       <li>
         <span class="k">&#9679;</span>

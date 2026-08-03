@@ -35,6 +35,36 @@ if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--transcribe" 
     exit(0)
 }
 
+// `speak --polish [text|-]` runs the post-processing chain on its own: the
+// polishing model, then the dictionary's corrections. Reads stdin when given
+// `-` or nothing, so it composes with the mode above:
+//
+//     speak --transcribe some.wav | speak --polish -
+//
+// There is no test target, so this is how the chain gets verified. It also
+// separates a polishing problem from a dictation one, the same way
+// `--transcribe` separates a model problem from a shortcut problem.
+if CommandLine.arguments.count >= 2, CommandLine.arguments[1] == "--polish" {
+    let argument = CommandLine.arguments.count >= 3 ? CommandLine.arguments[2] : "-"
+    let input: String
+    if argument == "-" {
+        input = String(
+            data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    } else {
+        input = argument
+    }
+
+    if let reason = Polisher.unavailableReason { log("no polishing: \(reason)") }
+    let t0 = Date()
+    let polisher = Polisher()
+    let out = await CustomDictionary.applyAround(input) {
+        await polisher.polish($0, force: true)
+    }
+    log(String(format: "polish %.1fs", Date().timeIntervalSince(t0)))
+    print(Punctuation.trimFragment(out))
+    exit(0)
+}
+
 // Top-level code in main.swift is already main-actor isolated, so the App can
 // be constructed directly. (Wrapping this in MainActor.assumeIsolated is an
 // error under Swift 6: assumeIsolated is unavailable from an async context,

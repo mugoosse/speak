@@ -47,8 +47,8 @@ the in-app updater. The two do not fight.
 
 - **A Mac with Apple silicon**, meaning an M1 or newer, so any Mac sold since
   late 2020. There is no Intel version.
-- **macOS 14 or later.** The Apple Intelligence engine additionally needs
-  macOS 26.
+- **macOS 14 or later.** The Apple Intelligence engine, and the optional
+  [AI polish](#polish) pass, additionally need macOS 26.
 - **About 5 GB free**, for the speech model, if you choose Parakeet. You can
   skip that entirely by choosing Apple Intelligence instead.
 
@@ -85,6 +85,10 @@ using Apple's MLX framework. Transcription never touches the network, so there
 is nothing to log in to, nothing to subscribe to, and no server that could hold
 your recordings even in principle.
 
+The optional [AI polish](#polish) pass does not change that. It uses the model
+built into macOS, which runs on your Mac like everything else here, so a
+polished transcript has still never left the machine.
+
 The trade is honest and worth stating: when a local model gets a word wrong,
 it is wrong. There is no cloud fallback to catch it. See
 [Limitations](#limitations) for the rest of what Speak deliberately will not do.
@@ -97,6 +101,9 @@ Everything below is reference. You do not need any of it to use Speak.
 
 [Use](#use) ·
 [Engines](#engines) ·
+[Polish](#polish) ·
+[Dictionary](#dictionary) ·
+[Punctuation](#punctuation) ·
 [Shortcut](#shortcut) ·
 [Microphone](#microphone) ·
 [History](#history) ·
@@ -114,8 +121,12 @@ Everything below is reference. You do not need any of it to use Speak.
 
 Press **fn + ⇧ left** (the default) to start, speak, press again to stop. The
 transcript is pasted into whatever is focused and stays on the clipboard, so
-⌘V works too. Turn off **Paste automatically** in Settings to only copy. The
-menu bar icon tracks state:
+⌘V works too. Turn off **Paste automatically** in Settings to only copy.
+
+Optionally the transcript is [polished](#polish) and run through your
+[dictionary](#dictionary) first. Both are off until you set them up.
+
+The menu bar icon tracks state:
 
 | Icon | Meaning |
 |---|---|
@@ -129,6 +140,12 @@ menu bar icon tracks state:
 The mark is Speak's own I-beam, the same one on the app icon, so it is possible
 to tell which app it belongs to. Clicking it names the app at the top of the
 menu.
+
+A small floating pill says the same thing on screen, where you are actually
+looking: **Listening** with a red dot and a running timer, then **Transcribing…**,
+then **Polishing…** if that is switched on. A dictation long enough to be split
+into several requests counts them off, **Polishing 2/4…**, so a long wait is
+visibly progress rather than a hang. Turn the pill off in Settings → General.
 
 ## Engines
 
@@ -212,6 +229,137 @@ offering one there would be a setting that silently does nothing.
 Automatic prefers a locale already installed on your Mac. Options marked
 *(downloads)* fetch a small language pack on first use.
 
+## Polish
+
+**Settings → Text → Polish transcripts with Apple Intelligence.** Off by
+default.
+
+Speech recognition writes down what you said. It does not know that "um" was
+not a word, that you started the sentence twice, or where the full stops go.
+Polishing hands the transcript to Apple Intelligence's on-device model, which
+punctuates it, drops fillers and false starts, and splits a long dictation into
+paragraphs.
+
+    um so i think we should uh basically try the the parakeet
+    model and see if it you know works better
+
+    So I think we should basically try the Parakeet model and
+    see if it works better.
+
+**Needs macOS 26 and Apple Intelligence switched on.** The checkbox says which
+of those is missing when it cannot run. Nothing else changes: corrections below
+still work, and so does dictation.
+
+It costs about a second on a normal dictation, which is why it is a choice
+rather than the default. **Style notes** in the same pane is free text passed
+to the model ("prefer short sentences"). It shapes how the result reads and
+cannot make the model add content or answer what you dictated.
+
+Still local. The model is part of macOS and runs on your Mac, so polishing adds
+no network traffic and nothing to log in to.
+
+### When polishing does nothing
+
+A transcript is passed through unchanged, rather than lost, whenever the model
+fails, refuses, takes too long, or returns something implausible. Speak also
+skips polishing above 8,000 characters, roughly ten minutes of talking, because
+the wait would be longer than rereading it yourself.
+
+The last check is worth knowing about, because it is what keeps a dictated
+question a question. A small model asked to tidy up "what time is the meeting
+tomorrow, can you let me know" will sometimes answer it instead, inventing a
+time. Speak compares the length of the reply with the length of the transcript
+and throws away anything that collapsed, on the grounds that tidying up does not
+make text three times shorter. Whatever the model did, the words you actually
+said are what reach the clipboard.
+
+Both halves are recorded: when polishing or a correction changes a transcript,
+the original is kept in the history file under `raw`, and the History pane shows
+it in the row's tooltip.
+
+## Dictionary
+
+**Settings → Text → Dictionary.** Two kinds of entry, because names come out
+wrong in two different ways.
+
+**Terms** are words Speak should know: names, product names, jargon, domains.
+They do two jobs.
+
+*Sounds-like correction.* A word you dictate that sounds like a term, and is not
+a word in its own right, is replaced with the term. One entry for "Goossens"
+catches "Gossens", "Goosens", "Gaussens" and "Gusens", and one for
+"flyinpublic.com" catches "Flamepublic.com". No model is involved, so this works
+with polishing off and on macOS 14.
+
+It compares the consonants and ignores the vowels, which is where mishearings
+differ. Two rules keep it safe: a term needs a single word of at least five
+letters, so short entries like "R2" are left alone, and a word already in the
+dictionary is never touched, so a term of "Codex" will not turn "codes" into
+"Codex".
+
+*Spelling hints.* Terms are also given to the polishing model, which stops it
+rewriting words it does not recognise. Measured over six runs each,
+"flyinpublic.com" survived polishing 0 times out of 6 without a hint and 5 out
+of 6 with one. Worth adding for any word you dictate often, even one the
+microphone always gets right. The first 600 characters of enabled terms are
+sent, from the top of the list.
+
+**Corrections** are exact replacements, for a mishearing that sounds nothing
+like the word you meant and so cannot be caught by a term: "Chrome Drops" for
+"cron jobs", "Dusk Warrior" for "Taskwarrior". A correction whose text is a word
+matches whole words only, so "cat" leaves "category" alone; anything else
+matches anywhere.
+
+**The longest match wins.** With rules for both "maxim" and "maxim Gusens", the
+full name is corrected as a unit rather than being half-fixed into "Maxime
+Gusens" by the shorter rule and then left unmatchable. Equal-length rules apply
+in list order.
+
+Corrections run **on both sides of polishing**, and each pass earns its keep.
+Running first means the rules see the raw transcript they were written against,
+and the model is handed the right proper nouns rather than guessing at a word it
+does not know. Running again afterwards means a replacement you asked for is the
+final word rather than something the model is free to revert.
+
+Polishing can still alter a corrected term in between: if it respells one, the
+second pass no longer recognises it. That is one more reason the raw transcript
+is kept in the history file.
+
+Stored as JSON at `~/Library/Application Support/speak/dictionary.json`, so it
+can be edited by hand or kept in a dotfiles repo.
+
+### Import and export
+
+**Import…** merges a file into what you already have rather than replacing it,
+skipping entries that are already present, so importing the same file twice is
+harmless. **Export…** writes the whole dictionary out for a backup or another
+Mac.
+
+Import reads Speak's own exports and
+[TypeWhisper](https://github.com/TypeWhisper/typewhisper-mac)'s, which uses a
+bare array and different field names (`type`, `original`, `isEnabled`). Terms
+and corrections both arrive whichever tab you are looking at.
+
+## Punctuation
+
+A dictation of four words or fewer does not get a full stop on the end.
+
+The speech model punctuates as it transcribes and treats every recording as a
+sentence, so dictating a single word would otherwise give you "Tomorrow." rather
+than "Tomorrow". That is correct for prose and wrong for a search box, a form
+field, a file name or a spreadsheet cell, and a full stop is a character you can
+type if you want one.
+
+This is the speech engine's doing rather than the [polishing](#polish) pass, so
+it happens whether or not polishing is on. There is no setting: it has an
+answer, so Speak does not ask.
+
+Only a full stop is dropped, and only when the whole dictation is one short
+fragment. Question marks and exclamation marks are always kept, because they
+change what the words say. Anything with a sentence break in it counts as prose
+whatever its length, though a full stop inside a domain does not count, so
+"flyinpublic.com." still loses its final one.
+
 ## Shortcut
 
 **Settings → General → Change…**, then hold your combination and release.
@@ -246,8 +394,14 @@ Every dictation is appended to
 {"at":"2026-07-29T13:59:32Z","duration_sec":1.3,"words":5,"text":"…"}
 ```
 
+`text` is what was pasted. When [polishing](#polish) or a
+[correction](#dictionary) changed it, a `raw` field holds the transcript as the
+speech engine produced it. The key is absent when nothing changed it, so the
+file does not carry two copies of every line.
+
 **Settings → History** lists them all: double-click a row to copy, or reveal the
-file. The menu bar shows the last five.
+file. Hovering a row shows the original when it differs. The menu bar shows the
+last five.
 
 JSONL rather than a database so it stays greppable and outlives the app:
 
@@ -310,6 +464,18 @@ Transcript to stdout, timings to stderr, no permissions needed. If that works,
 the model is fine and the problem is the shortcut. `SPEAK_DEBUG=1` traces every
 modifier change to stderr.
 
+The [polishing](#polish) pass and the [dictionary](#dictionary) can be run the
+same way, on text rather than audio:
+
+```sh
+echo "um so i think it works" | /Applications/Speak.app/Contents/MacOS/Speak --polish -
+/Applications/Speak.app/Contents/MacOS/Speak --transcribe some.wav | \
+    /Applications/Speak.app/Contents/MacOS/Speak --polish -
+```
+
+Reads an argument or stdin, prints the result to stdout, and reports on stderr
+why it did nothing if polishing is unavailable.
+
 ## Uninstalling
 
 Quit Speak from the menu bar, then drag **Speak** from Applications to the
@@ -362,6 +528,7 @@ Environment variables override the UI, for one-off runs:
 |---|---|---|
 | `SPEAK_MODEL` | unset | force a model repo; disables the Model picker |
 | `SPEAK_AUTOPASTE` | unset | `1` forces the ⌘V press on, even if Settings has it off |
+| `SPEAK_POLISH` | unset | `1` forces polishing on, `0` forces it off |
 | `SPEAK_DEBUG` | unset | `1` traces every modifier change to stderr |
 
 ## Disk use
@@ -483,11 +650,21 @@ choice; nothing observable grows during the transfer. Explained
 **No streaming partial results.** You get the transcript when you stop talking,
 not as you speak. Parakeet transcribes a complete utterance.
 
-**No custom vocabulary or dictionary.** Names, jargon and acronyms come out
-however the model heard them.
+**The speech engines cannot be taught new words.** Neither Parakeet nor
+`SpeechTranscriber` exposes a vocabulary or hotword API, so a name is misheard
+first and repaired afterwards, in the text. [Terms](#dictionary) catch the
+mishearings that sound like the word you meant; anything further off needs a
+[correction](#dictionary) naming it.
+
+**Polishing is a small model and can be wrong.** It occasionally rewrites a
+technical term, or leaves fillers it was asked to remove. It is off by default,
+it never replaces a transcript it failed to improve, and the original stays in
+the history file under `raw`. It also covers fewer languages than Parakeet v3's
+25; where it is out of its depth the transcript passes through unchanged.
 
 **No cloud fallback, ever.** When the local model is wrong, it is wrong. That
-is the trade for audio never leaving the machine.
+is the trade for audio never leaving the machine. Polishing is local too, so it
+is not that fallback.
 
 **Text is inserted with a synthetic ⌘V, not typed at the cursor.** Some apps
 ignore a synthetic keystroke, and the paste lands wherever focus happens to be.
