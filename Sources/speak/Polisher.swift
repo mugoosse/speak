@@ -49,6 +49,9 @@ actor Polisher {
     /// Corrections still run.
     private let maximumChars = 8_000
 
+    /// True once a request has come back, meaning the model is resident.
+    private var everSucceeded = false
+
     /// How long one chunk is allowed to take.
     ///
     /// Scaled, because a fixed ceiling is wrong at both ends: 10 seconds cuts
@@ -56,11 +59,19 @@ actor Polisher {
     /// one-line dictation hang for half a minute before falling back. The model
     /// produces roughly 400 characters a second and a reply is about as long as
     /// its input, so a chunk needs input/400 seconds. This allows four times
-    /// that, plus five seconds of slack for a cold model, which leaves room for
-    /// hardware slower than the machine it was measured on while still catching
-    /// the 45-second runaway that overflows the context window.
+    /// that, plus five seconds of slack.
+    ///
+    /// The first request of the process is the exception, and getting this
+    /// wrong made the feature look broken on a Mac that had not run it before:
+    /// loading the model costs about 50 seconds even on an M4 Max, so a
+    /// two-word dictation blew a 5 second ceiling, waited, and pasted the raw
+    /// transcript. Measured on a warm model everything looked fine, which is
+    /// exactly why it survived testing. A cancelled request still leaves the
+    /// model loaded, so the generous ceiling is needed once and the tight one
+    /// applies from then on.
     private func timeout(for chunk: String) -> Duration {
-        .seconds(5 + Double(chunk.count) / 100)
+        let scaled = 5 + Double(chunk.count) / 100
+        return .seconds(everSucceeded ? scaled : max(scaled, 25))
     }
 
     // -----------------------------------------------------------------------
@@ -172,6 +183,7 @@ actor Polisher {
             return first
         }
 
+        everSucceeded = true
         let cleaned = Self.sanitize(raw, nonce: nonce)
         guard !cleaned.isEmpty else { throw PolishError.empty }
         guard Self.isPlausible(cleaned, from: chunk) else { throw PolishError.collapsed }

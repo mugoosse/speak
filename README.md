@@ -285,17 +285,22 @@ wrong in two different ways.
 **Terms** are words Speak should know: names, product names, jargon, domains.
 They do two jobs.
 
-*Sounds-like correction.* A word you dictate that sounds like a term, and is not
-a word in its own right, is replaced with the term. One entry for "Goossens"
-catches "Gossens", "Goosens", "Gaussens" and "Gusens", and one for
-"flyinpublic.com" catches "Flamepublic.com". No model is involved, so this works
-with polishing off and on macOS 14.
+*Sounds-like correction.* Anything you dictate that sounds like a term is
+replaced with it. One entry for "Goossens" catches "Gossens", "Goosens",
+"Gaussens" and "Gusens"; one for "flyinpublic.com" catches "Flamepublic.com";
+one for "Claude Code" catches "Cloud coat". No model is involved, so this works
+with polishing off, on macOS 14, and when polishing fails.
 
 It compares the consonants and ignores the vowels, which is where mishearings
-differ. Two rules keep it safe: a term needs a single word of at least five
-letters, so short entries like "R2" are left alone, and a word already in the
-dictionary is never touched, so a term of "Codex" will not turn "codes" into
-"Codex".
+differ. What keeps it safe depends on the length of the term:
+
+- **A single word** needs at least five letters, so short entries like "R2" are
+  left alone, and it will never replace a word that is already English: a term
+  of "Codex" does not turn "codes" into "Codex".
+- **A phrase** needs every word to match in sequence, which is a far stronger
+  signal, so it is allowed to replace ordinary words. That is the only way to
+  fix "Cloud coat", which is two perfectly good English words and still
+  obviously a misheard "Claude Code".
 
 *Spelling hints.* Terms are also given to the polishing model, which stops it
 rewriting words it does not recognise. Measured over six runs each,

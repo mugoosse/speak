@@ -298,44 +298,81 @@ enum CustomDictionary {
     /// Only applied to the raw transcript, before polishing. Mishearings come
     /// from the microphone, not from the model.
     static func applyTerms(to text: String, entries: [Entry]? = nil) -> String {
-        let terms = (entries ?? load()).filter {
-            $0.kind == .term && $0.enabled
-                && !$0.text.contains(" ")
-                && $0.text.filter(\.isLetter).count >= minimumSoundsLike
-        }
+        let terms = (entries ?? load())
+            .filter { $0.kind == .term && $0.enabled && eligible($0.text) }
+            .map { (keys: $0.text.split(separator: " ").map { phoneticKey(String($0)) },
+                    text: $0.text) }
+            // Longest first, so a term for "Claude Code" beats one for "Claude".
+            .sorted { $0.keys.count > $1.keys.count }
         guard !terms.isEmpty, !lexicon.isEmpty else { return text }
-
-        var byKey: [String: String] = [:]
-        for term in terms { byKey[phoneticKey(term.text)] = term.text }
 
         guard let regex = try? NSRegularExpression(
             pattern: "[\\p{L}\\p{N}][\\p{L}\\p{N}._'-]*") else { return text }
 
+        // Trailing punctuation belongs to the sentence, not the word:
+        // "flyinpublic.com." must not be compared with its full stop.
+        let tokens: [(word: String, tail: String, range: Range<String.Index>)] =
+            regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            .compactMap { match in
+                guard let range = Range(match.range, in: text) else { return nil }
+                let raw = String(text[range])
+                let word = String(raw.reversed().drop { ".'_-".contains($0) }.reversed())
+                return (word, String(raw.dropFirst(word.count)), range)
+            }
+
         var out = ""
         var cursor = text.startIndex
-        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-            guard let range = Range(match.range, in: text) else { continue }
-            let token = String(text[range])
-            // Trailing punctuation belongs to the sentence, not the word:
-            // "flyinpublic.com." must not be compared with its full stop.
-            let trimmed = token.drop(while: { _ in false })
-                .reversed().drop(while: { ".'_-".contains($0) }).reversed()
-            let word = String(trimmed)
-            let tail = String(token.dropFirst(word.count))
+        var i = 0
+        while i < tokens.count {
+            var advance = 1
+            for term in terms where i + term.keys.count <= tokens.count {
+                let span = Array(tokens[i..<(i + term.keys.count)])
+                // Punctuation inside the span means these words are not one
+                // phrase: "the cloud. Coat rack" is not "Claude Code".
+                guard span.dropLast().allSatisfy({ $0.tail.isEmpty }),
+                      zip(span, term.keys).allSatisfy({ phoneticKey($0.word) == $1 })
+                else { continue }
 
-            guard let term = byKey[phoneticKey(word)],
-                  word.caseInsensitiveCompare(term) != .orderedSame,
-                  !isRealWord(word),
-                  // A wild length difference means the codes collided rather
-                  // than the speaker being misheard.
-                  Double(word.count) >= Double(term.count) * 0.6,
-                  Double(word.count) <= Double(term.count) * 1.6
-            else { continue }
+                let phrase = span.map(\.word).joined(separator: " ")
+                guard phrase.caseInsensitiveCompare(term.text) != .orderedSame else {
+                    advance = term.keys.count      // already right, leave it alone
+                    break
+                }
+                guard accepts(phrase: phrase, as: term.text, words: term.keys.count)
+                else { continue }
 
-            out += text[cursor..<range.lowerBound] + term + tail
-            cursor = range.upperBound
+                out += text[cursor..<span[0].range.lowerBound] + term.text + span.last!.tail
+                cursor = span.last!.range.upperBound
+                advance = term.keys.count
+                break
+            }
+            i += advance
         }
         return out.isEmpty ? text : out + text[cursor...]
+    }
+
+    /// A term can only match by sound if it is long enough to be distinctive.
+    private static func eligible(_ term: String) -> Bool {
+        let words = term.split(separator: " ")
+        guard !words.isEmpty else { return false }
+        let letters = term.filter(\.isLetter).count
+        // A phrase has to clear a higher bar in total, but its individual words
+        // do not: "Claude Code" is two five-letter words and unmistakable,
+        // while a single "Code" would collide with half the language.
+        return words.count > 1 ? letters >= 8 : letters >= minimumSoundsLike
+    }
+
+    private static func accepts(phrase: String, as term: String, words: Int) -> Bool {
+        // A phrase is allowed to be made of real words. "Cloud coat" is two
+        // perfectly good English words and still obviously a misheard "Claude
+        // Code"; requiring otherwise would make multi-word terms useless. The
+        // protection is that every word has to match by sound in sequence,
+        // which is a far stronger signal than one word matching alone.
+        if words == 1 && isRealWord(phrase) { return false }
+        // A wild length difference means the codes collided rather than the
+        // speaker being misheard.
+        return Double(phrase.count) >= Double(term.count) * 0.6
+            && Double(phrase.count) <= Double(term.count) * 1.6
     }
 
     // -----------------------------------------------------------------------

@@ -104,6 +104,14 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // download asked for.
         if Settings.onboarded {
             reloadModel()
+            // Load the polishing model now rather than at the first dictation.
+            // It costs about 50 seconds the first time on any Mac, and doing it
+            // here means that is spent while nobody is waiting, instead of
+            // between somebody letting go of the key and their words appearing.
+            Task {
+                CustomDictionary.warm()
+                await polisher.prewarm()
+            }
         } else {
             setStatus(.idle)
         }

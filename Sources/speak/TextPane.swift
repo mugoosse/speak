@@ -148,8 +148,10 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
         ]))
         stack.addArrangedSubview(caption(
             showing == .term
-                ? "Needs one word of five letters or more, and never changes a real English "
-                    + "word: \"Codex\" leaves \"codes\" alone."
+                ? "Matched by sound. A single word needs five letters and is never swapped "
+                    + "for a real English word, so \"Codex\" leaves \"codes\" alone. A "
+                    + "phrase needs every word to match, which is how \"Claude Code\" "
+                    + "catches \"Cloud coat\"."
                 : "Matches whole words where the text is a word, so \"cat\" leaves "
                     + "\"category\" alone. The longest match wins."))
     }

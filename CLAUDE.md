@@ -292,6 +292,25 @@ Keep a pane's content inside `paneHeight` rather than relying on the scrolling.
 The dictionary table is a scroll view too, and a scroll view inside a scroll
 view means the wheel moves the table while the page stays put.
 
+### The first polish request of the process costs about 50 seconds
+
+Loading Apple's model is not free and is not the per-request cost. Measured cold
+on an M4 Max, the first `respond` took **49.8 s**; warm requests on the same
+machine take under one. So a tight timeout looks perfectly correct in testing,
+where the model is always resident from the last run, and fails on every Mac
+that has not run the feature recently. It shipped that way once: a two-word
+dictation on an M1 blew the 5 second ceiling, made the user wait, and pasted the
+raw transcript.
+
+Two things keep it working, and both are needed. `Polisher.timeout` allows 25
+seconds until `everSucceeded`, then the tight scaled ceiling, because a
+cancelled request still leaves the model loaded. And `applicationDidFinishLaunching`
+prewarms, so the load happens while nobody is waiting rather than between
+somebody letting go of the key and their words appearing.
+
+Anything measuring polish latency has to launch a fresh process to mean
+anything.
+
 ### A term is a phonetic rule, not just a prompt hint
 
 Terms began as text pasted into the prompt, and measured over six runs each that
@@ -310,12 +329,19 @@ which is exactly where mishearings differ: "Goossens", "Gossens", "Goosens",
 Two guards make it safe to run unattended, and removing either makes it
 dangerous:
 
-1. **At least five letters, single word.** Short codes collide constantly; a
-   term of "R2" would rewrite half of what anyone dictates.
-2. **Never replace a real word.** `/usr/share/dict/words` with cheap suffix
-   stripping, because that list is from 1934 and has no plurals, so "codes" and
-   "dogs" are absent from it and would otherwise be fair game. Without this a
-   term of "Codex" rewrites "codes".
+1. **At least five letters** for a single word, eight across a phrase. Short
+   codes collide constantly; a term of "R2" would rewrite half of what anyone
+   dictates.
+2. **Never replace a real word**, for single-word terms only.
+   `/usr/share/dict/words` with cheap suffix stripping, because that list is
+   from 1934 and has no plurals, so "codes" and "dogs" are absent from it and
+   would otherwise be fair game. Without this a term of "Codex" rewrites
+   "codes".
+
+A phrase is deliberately exempt from the second rule. "Cloud coat" is two
+perfectly good English words and still obviously a misheard "Claude Code";
+requiring otherwise makes multi-word terms useless, which is how they shipped
+first. Every word matching in sequence is the stronger signal that replaces it.
 
 Sounds-like runs only on the raw transcript, before polishing. Mishearings come
 from the microphone, not from the model.
