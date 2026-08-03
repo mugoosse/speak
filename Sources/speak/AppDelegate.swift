@@ -843,15 +843,28 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             guard ready else { NSSound.beep(); return }
             // Tied to the first audio buffer, not to this line: it has to mean
-            // "the microphone is live", and the engine takes a moment. If
-            // another app is holding the device it never fires, which is the
-            // truthful outcome.
-            recorder.onFirstBuffer = { Cue.start() }
+            // "the microphone is live", and the engine takes a moment. Over
+            // Bluetooth that moment is the profile switch to HFP, which can
+            // run past a second, and the icon and pill used to flip the
+            // instant `start()` returned instead of waiting for this, so a
+            // Bluetooth mic told the user to talk before it could hear them.
+            // If another app is holding the device this never fires, which is
+            // the truthful outcome. Re-checks `isRecording` because it fires
+            // off the audio thread and the key may already be back up by the
+            // time it reaches the main actor, in which case the recording
+            // state has already moved on to transcribing and must not be
+            // stomped back to "recording".
+            recorder.onFirstBuffer = { [weak self] in
+                Cue.start()
+                Task { @MainActor in
+                    guard let self, self.recorder.isRecording else { return }
+                    self.setIcon(.recording, "recording…")
+                    if Settings.showIndicator { self.indicator.show(.recording) }
+                }
+            }
             do {
                 try recorder.start()
                 micError = nil
-                setIcon(.recording, "recording…")
-                if Settings.showIndicator { indicator.show(.recording) }
                 // Load the polishing model and the word list while the user is
                 // still talking. The first request to a cold model is the slow
                 // one, and this spends time they were going to spend anyway.
