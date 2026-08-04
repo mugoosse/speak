@@ -341,7 +341,7 @@ enum CustomDictionary {
                 guard accepts(phrase: phrase, as: term.text, words: term.keys.count)
                 else { continue }
 
-                out += text[cursor..<span[0].range.lowerBound] + term.text + span.last!.tail
+                out += String(text[cursor..<span[0].range.lowerBound]) + term.text + span.last!.tail
                 cursor = span.last!.range.upperBound
                 advance = term.keys.count
                 break
