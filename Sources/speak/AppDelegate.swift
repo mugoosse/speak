@@ -89,6 +89,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        installEditMenu()
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let menu = NSMenu()
         menu.delegate = self
@@ -511,6 +513,30 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: - Menu
+
+    /// Cmd-C/V/X/A/Z only work in a text field because `NSApp.performKeyEquivalent`
+    /// finds a menu item for them, so those keys otherwise do nothing anywhere in
+    /// the app: not the dictionary editor, not Style notes, not onboarding. An
+    /// `LSUIElement` app never gets a menu bar slot, so this is invisible; it
+    /// exists only to give the standard shortcuts something to bind to.
+    private func installEditMenu() {
+        let main = NSMenu()
+        let editItem = NSMenuItem()
+        main.addItem(editItem)
+        NSApp.mainMenu = main
+
+        let edit = NSMenu(title: "Edit")
+        editItem.submenu = edit
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)),
+                     keyEquivalent: "a")
+    }
 
     /// Kept deliberately thin. Everything configurable lives in Settings; the
     /// menu is for status and the two things worth reaching in one click.
