@@ -199,19 +199,57 @@ derivable from a release, so they survive either way.
 ## Verifying a release
 
 The DMG that matters is the one a user downloads, which carries a quarantine
-flag the local build never has:
+flag the local build never has. `gh release download` does **not** set that
+flag, so it has to be applied by hand or the check passes without testing
+anything:
 
 ```sh
 gh release download v1.0.1 --pattern "*.dmg" --dir /tmp
-xattr -p com.apple.quarantine /tmp/Speak-1.0.1.dmg   # should exist
+xattr -w com.apple.quarantine "0083;00000000;Safari;" /tmp/Speak-1.0.1.dmg
 spctl -a -vvv -t open --context context:primary-signature /tmp/Speak-1.0.1.dmg
+shasum -a 256 /tmp/Speak-1.0.1.dmg    # against SHA256SUMS.txt
 ```
 
-`accepted` means it opens with no Gatekeeper dialog. Also worth checking:
+`accepted`, with `source=Notarized Developer ID`, means it opens with no
+Gatekeeper dialog.
+
+`gh attestation verify` does **not** work on a release cut this way and returns
+a 404. Provenance attestations come from `actions/attest-build-provenance` in
+`release.yml`, which needs the repository secrets and has never run, so no
+release has one. It is worth running only against a release published by CI.
+
+### Installing a release to test it
+
+Copying the app out of the mounted DMG is not the same as dragging it in
+Finder, and the difference is not cosmetic. `ditto` and `cp -R` preserve the
+quarantine flag, and macOS then runs the app from a randomised read-only path
+under `/private/var/folders/…/AppTranslocation/` rather than from
+`/Applications`. Finder marks its copy as user-installed, which is what stops
+that happening.
+
+So either drag it in Finder, or copy it and then clear the flag:
 
 ```sh
-gh attestation verify /tmp/Speak-1.0.1.dmg --repo mugoosse/speak
-shasum -a 256 /tmp/Speak-1.0.1.dmg    # against SHA256SUMS.txt
+ditto "/Volumes/Speak 1.0.1/Speak.app" /Applications/Speak.app
+xattr -dr com.apple.quarantine /Applications/Speak.app
+```
+
+Clearing it disturbs neither the signature nor the stapled ticket; both still
+pass `codesign --verify --deep --strict` and `stapler validate`. Check where it
+actually ended up, because a translocated copy looks fine until something
+depends on its path:
+
+```sh
+pgrep -fl Speak.app     # must print /Applications/..., not /private/var/folders/...
+```
+
+To confirm the installed app *is* the published one rather than a local build
+that happens to share a version number, compare the signed hash of the bundle's
+contents. A rebuild is never byte-identical, so this is the check that
+distinguishes them:
+
+```sh
+codesign -dvvv /Applications/Speak.app 2>&1 | grep CDHash
 ```
 
 ## Delta updates
