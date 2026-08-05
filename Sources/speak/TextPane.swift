@@ -16,6 +16,9 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
     private var showing: CustomDictionary.Kind = .term
     private var table: NSTableView!
     private var empty: NSTextField!
+    /// Held so switching polishing off can grey it out without a rebuild, which
+    /// would take the dictionary table's selection with it.
+    private var repairToggle: NSButton?
 
     /// Indices into `entries` for the rows on screen, so a row number can be
     /// turned back into the entry it edits.
@@ -63,6 +66,18 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
                 + "it fails, the transcript is pasted unchanged."))
         }
 
+        let repair = NSButton(checkboxWithTitle: "Also remove self-corrections",
+                              target: self, action: #selector(toggleRepair))
+        repair.state = Settings.repairEnabled ? .on : .off
+        repair.isEnabled = reason == nil && Settings.polishEnabled
+        repairToggle = repair
+        stack.addArrangedSubview(repair)
+        stack.addArrangedSubview(caption(
+            "Deletes a phrase you started, broke off and said again: \"send me the doc the "
+            + "spreadsheet\" becomes \"send me the spreadsheet\". Only sentences that look "
+            + "like this are sent, so most dictations are not slowed at all. It does not "
+            + "catch a restart that repeats a word from your first try."))
+
         let notes = NSTextField(string: Settings.polishInstructions)
         notes.placeholderString = "for example: prefer short sentences"
         notes.target = self
@@ -81,6 +96,14 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
 
     @objc private func togglePolish(_ sender: NSButton) {
         Settings.polishEnabled = sender.state == .on
+        // Updated in place rather than through `rebuild()`: rebuilding here
+        // would also rebuild the dictionary table underneath and drop whatever
+        // row was selected.
+        repairToggle?.isEnabled = sender.state == .on
+    }
+
+    @objc private func toggleRepair(_ sender: NSButton) {
+        Settings.repairEnabled = sender.state == .on
     }
 
     @objc private func commitNotes(_ sender: NSTextField) {
