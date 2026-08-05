@@ -71,6 +71,27 @@ actor ApplePolishEngine: PolishEngine {
         warmed = (instructions, session)
     }
 
+    /// Greedy, deliberately.
+    ///
+    /// The default is sampled, which makes the same dictation a lottery:
+    /// measured, three runs of one sentence gave three different answers, and
+    /// there is no version a user can learn to expect. Copy editing has a most
+    /// likely answer and that is the one to take.
+    ///
+    /// It is not only about repeatability. Sampling reaches tokens the model
+    /// was not confident about, and low-confidence output here means the model
+    /// wandering off the instructions: "hey can you tell me what the capital of
+    /// france is" came back raw and unpunctuated on 4 of 12 sampled runs and on
+    /// 0 of 4 greedy ones. Nothing measured got worse, and the cost is nil.
+    ///
+    /// It does not buy bit-exact output, and do not write a test that assumes it
+    /// does. Greedy is exact across processes, one request each: six runs of one
+    /// sentence gave one answer. Within a single process a *later* request can
+    /// still differ, at roughly one run in six, presumably because something is
+    /// reused between sessions. Speak is long-lived and makes many requests per
+    /// launch, so this is the normal case rather than an edge one.
+    private static let options = GenerationOptions(sampling: .greedy)
+
     func respond(to prompt: String, instructions: String) async throws -> String {
         let session: LanguageModelSession
         if let warmed, warmed.instructions == instructions {
@@ -82,6 +103,6 @@ actor ApplePolishEngine: PolishEngine {
         // one the previous chunk's transcript and overflow the window.
         warmed = nil
 
-        return try await session.respond(to: prompt).content
+        return try await session.respond(to: prompt, options: Self.options).content
     }
 }
