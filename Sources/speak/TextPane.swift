@@ -19,6 +19,10 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
     /// Held so switching polishing off can grey it out without a rebuild, which
     /// would take the dictionary table's selection with it.
     private var repairToggle: NSButton?
+    /// Whether the dictionary's matching rules are folded open. Held here for
+    /// the same reason `showing` is: switching kind rebuilds the pane, and
+    /// somebody who opened the rules did not ask for them to shut again.
+    private var rulesShown = false
 
     /// Indices into `entries` for the rows on screen, so a row number can be
     /// turned back into the entry it edits.
@@ -72,11 +76,13 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
         repair.isEnabled = reason == nil && Settings.polishEnabled
         repairToggle = repair
         stack.addArrangedSubview(repair)
+        // Two lines, deliberately. This pane already runs past the bottom of the
+        // window, and everything added here pushes the dictionary's buttons
+        // further out of reach.
         stack.addArrangedSubview(caption(
-            "Deletes a phrase you started, broke off and said again: \"send me the doc the "
-            + "spreadsheet\" becomes \"send me the spreadsheet\". Only sentences that look "
-            + "like this are sent, so most dictations are not slowed at all. It does not "
-            + "catch a restart that repeats a word from your first try."))
+            "Deletes a phrase you started, broke off and said again: \"the doc the "
+            + "spreadsheet\" becomes \"the spreadsheet\". Only sentences that look like "
+            + "that go to the model."))
 
         let notes = NSTextField(string: Settings.polishInstructions)
         notes.placeholderString = "for example: prefer short sentences"
@@ -115,12 +121,29 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
     // -----------------------------------------------------------------------
 
     private func buildDictionary() {
-        stack.addArrangedSubview(heading("Dictionary"))
+        // What each kind is stays on screen, because it is what the Terms and
+        // Corrections tabs mean. How the matching works folds away: it is read
+        // while typing an entry in, not while deciding to add one.
+        let rules = detail(showing == .term
+            ? "Anything you dictate that sounds like a term, and is not a word in its own "
+                + "right, is corrected to it. A single word needs five letters and is never "
+                + "swapped for a real English word, so \"Codex\" leaves \"codes\" alone. A "
+                + "phrase needs every word to match, which is how \"Claude Code\" catches "
+                + "\"Cloud coat\"."
+            : "A correction is an exact replacement, for a mishearing that sounds nothing "
+                + "like the word you meant. It matches whole words where the text is a word, "
+                + "so \"cat\" leaves \"category\" alone. The longest pattern wins, so \"maxim "
+                + "Gusens\" beats \"maxim\" and the two compose.")
+
+        stack.addArrangedSubview(row(
+            [heading("Dictionary")],
+            trailing: Discloser(revealing: rules, expanded: rulesShown) { [weak self] in
+                self?.rulesShown = $0
+            }))
         stack.addArrangedSubview(caption(
-            "Terms are words Speak should know. Anything you dictate that sounds like one, "
-            + "and is not a word in its own right, is corrected to it. Corrections are "
-            + "exact replacements, for mishearings that sound nothing like the word you "
-            + "meant."))
+            "Terms are words Speak should know, matched by sound. Corrections are exact "
+            + "replacements."))
+        stack.addArrangedSubview(rules)
 
         let picker = NSSegmentedControl(
             labels: ["Terms", "Corrections"], trackingMode: .selectOne,
@@ -169,14 +192,6 @@ final class TextPane: Pane, NSTableViewDataSource, NSTableViewDelegate,
             NSButton(title: "Export…", target: self, action: #selector(exportEntries)),
             NSButton(title: "Reveal file", target: self, action: #selector(reveal)),
         ]))
-        stack.addArrangedSubview(caption(
-            showing == .term
-                ? "Matched by sound. A single word needs five letters and is never swapped "
-                    + "for a real English word, so \"Codex\" leaves \"codes\" alone. A "
-                    + "phrase needs every word to match, which is how \"Claude Code\" "
-                    + "catches \"Cloud coat\"."
-                : "Matches whole words where the text is a word, so \"cat\" leaves "
-                    + "\"category\" alone. The longest match wins."))
     }
 
     private func columns() -> [(String, String, CGFloat)] {

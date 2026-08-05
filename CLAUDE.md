@@ -530,7 +530,20 @@ otherwise equal-length rules would shuffle between runs.
 - Do not use the word "drift".
 - Comments explain *why*, especially where the obvious implementation is wrong.
   Most comments in this codebase mark a trap; keep them when editing nearby.
-- UI copy states the trade-off rather than hiding it in a tooltip.
+- UI copy states the trade-off rather than hiding it in a tooltip. Every control
+  in Settings changes the user's words, so "this rewrites what you said" has to
+  be on screen, not behind a hover nobody performs.
+- Reference text is the exception, and it goes behind a `Discloser`, the "?" that
+  folds a `Pane.detail` block open in place. The test is whether the sentence
+  would change the decision: "adds about a second before pasting" would, so it is
+  a `caption`; "a single word needs five letters" would not, since it is read
+  while typing a term in, so it is a `detail`. Not a tooltip, which needs a
+  deliberate hover, cannot be reached from the keyboard and does not survive a
+  screenshot.
+- Watch the height of a pane when adding to it. `paneHeight` is 600 and the Text
+  tab already runs past it, which puts the dictionary's buttons below the fold,
+  where the nested scroll view makes them awkward to reach. Adding a four-line
+  caption costs about 60 points of somebody else's reach.
 
 ## Releasing
 

@@ -163,11 +163,44 @@ class Pane: NSViewController {
         return t
     }
 
+    /// Reference text, folded away until the "?" beside it is pressed.
+    ///
+    /// For what somebody needs while *using* a control, never for what they need
+    /// while deciding whether to switch it on. A consequence stays visible: the
+    /// panes describe features that rewrite the user's words, and "this rewrites
+    /// what you said" behind an affordance nobody presses is how someone is
+    /// surprised by their own transcript.
+    ///
+    /// The test is whether the sentence would change the decision. "Adds about a
+    /// second before pasting" would, so it is a caption. "A single word needs
+    /// five letters" would not, it is read while typing a term in, so it is one
+    /// of these.
+    func detail(_ s: String) -> NSTextField {
+        let t = caption(s)
+        t.isHidden = true
+        return t
+    }
+
     func row(_ views: [NSView]) -> NSStackView {
         let r = NSStackView(views: views)
         r.orientation = .horizontal
         r.alignment = .centerY
         r.spacing = 10
+        return r
+    }
+
+    /// A row with its last view pushed to the trailing edge of the content
+    /// column, so it lines up with the separators and the tables rather than
+    /// trailing whatever text happens to sit beside it.
+    ///
+    /// The spacer hugs at 1, so it loses to both sides and absorbs the slack.
+    /// Same trick as the vertical spacer `buildContents` appends.
+    func row(_ views: [NSView], trailing: NSView) -> NSStackView {
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+        let r = row(views + [spacer, trailing])
+        r.translatesAutoresizingMaskIntoConstraints = false
+        r.widthAnchor.constraint(equalToConstant: 470).isActive = true
         return r
     }
 
@@ -184,6 +217,51 @@ class Pane: NSViewController {
             stack.removeArrangedSubview($0); $0.removeFromSuperview()
         }
         buildContents()
+    }
+}
+
+/// The "?" that folds a `detail` block open and shut.
+///
+/// Reveals the text in place rather than showing a tooltip, and the difference
+/// matters. A tooltip needs a deliberate hover, is unreachable from the
+/// keyboard, and does not survive a screenshot, which makes it the wrong home
+/// for anything somebody actually has to read. This is a button: it can be
+/// tabbed to, pressed with the keyboard, and what it reveals stays on screen to
+/// be read at any length.
+@MainActor
+final class Discloser: NSButton {
+    private weak var detail: NSView?
+    private let onToggle: (Bool) -> Void
+
+    init(revealing detail: NSView, expanded: Bool, onToggle: @escaping (Bool) -> Void) {
+        self.detail = detail
+        self.onToggle = onToggle
+        super.init(frame: .zero)
+        bezelStyle = .helpButton
+        title = ""
+        target = self
+        action = #selector(toggle)
+        detail.isHidden = !expanded
+        describe(expanded)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("built in code, never from a nib") }
+
+    @objc private func toggle() {
+        guard let detail else { return }
+        detail.isHidden.toggle()
+        let expanded = !detail.isHidden
+        describe(expanded)
+        onToggle(expanded)
+    }
+
+    /// Says which way it will go, not which way it is, because that is what
+    /// somebody about to press it wants to know.
+    private func describe(_ expanded: Bool) {
+        let label = expanded ? "Hide the details" : "Show the details"
+        toolTip = label
+        setAccessibilityLabel(label)
     }
 }
 
