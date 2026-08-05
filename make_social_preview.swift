@@ -17,9 +17,9 @@ import AppKit
 let W = 1280.0
 let H = 640.0
 
-// Sampled from Assets/icon.png: the I-beam mint, and the two near-blacks of
-// the squircle body.
-let MINT = NSColor(srgbRed: 0x9B / 255, green: 0xDC / 255, blue: 0xB0 / 255, alpha: 1)
+// Sampled from Assets/icon.png: the mascot's vermilion accent and the dark
+// field behind it.
+let VERMILION = NSColor(srgbRed: 0xF0 / 255, green: 0x43 / 255, blue: 0x24 / 255, alpha: 1)
 let INK = NSColor(srgbRed: 0x0D / 255, green: 0x0D / 255, blue: 0x0C / 255, alpha: 1)
 let INK_LIGHT = NSColor(srgbRed: 0x1E / 255, green: 0x1D / 255, blue: 0x1D / 255, alpha: 1)
 let GREY = NSColor(srgbRed: 0x8A / 255, green: 0x8A / 255, blue: 0x88 / 255, alpha: 1)
@@ -66,13 +66,13 @@ let ICON_SIZE = 244.0
 let ICON_X = 236.0
 let iconCentre = NSPoint(x: ICON_X + ICON_SIZE / 2, y: fromTop(H / 2))
 
-// Soft mint bloom behind the icon, tying the card to the app's one accent.
+// Soft vermilion bloom behind the icon, tying the card to the app's accent.
 // The gradient has to reach full transparency well inside the path it fills,
 // otherwise the fill's own edge shows up as a hard circle on this dark a
 // background. Hence a bloom far wider than the glow it appears to produce.
 let BLOOM = 900.0
 let bloom = NSGradient(
-    colors: [MINT.withAlphaComponent(0.13), MINT.withAlphaComponent(0.03), MINT.withAlphaComponent(0)],
+    colors: [VERMILION.withAlphaComponent(0.13), VERMILION.withAlphaComponent(0.03), VERMILION.withAlphaComponent(0)],
     atLocations: [0, 0.42, 0.78],
     colorSpace: .sRGB)!
 bloom.draw(in: NSBezierPath(ovalIn: NSRect(x: iconCentre.x - BLOOM / 2,
@@ -105,11 +105,11 @@ func draw(_ string: String, x: Double, top: Double,
 // The wordmark, then the promise, then the proof. Same order as the README,
 // so someone arriving from the card is not re-oriented on landing.
 draw("Speak", x: TEXT_X, top: 172, size: 92, weight: .bold, color: .white, tracking: -2)
-draw("Talk instead of typing.", x: TEXT_X, top: 288, size: 44, weight: .medium, color: MINT)
+draw("Talk instead of typing.", x: TEXT_X, top: 288, size: 44, weight: .medium, color: VERMILION)
 draw("Anywhere on your Mac.", x: TEXT_X, top: 342, size: 44, weight: .medium, color: GREY)
 
 // Hairline rule, the only structural element on the card.
-MINT.withAlphaComponent(0.28).setFill()
+VERMILION.withAlphaComponent(0.28).setFill()
 NSRect(x: TEXT_X, y: fromTop(422, height: 2), width: 300, height: 2).fill()
 
 draw("Free  ·  Runs offline  ·  No account  ·  Open source",

@@ -15,16 +15,15 @@
 <meta name="twitter:card" content="summary_large_image" />
 
 <style>
-  /* Palette sampled from the app icon, so the site, the card and the app
+  /* Palette sampled from the red mascot icon, so the site, card and app
      agree. This page commits to one dark look rather than following the
-     system theme: the product is a black menu-bar app and the icon only
-     reads on dark. */
+     system theme: Speak is a menu-bar app and the icon reads best on dark. */
   :root {
     --ink:        #0d0d0c;
     --ink-raised: #161615;
     --line:       #262624;
-    --mint:       #9bdcb0;
-    --mint-dim:   rgba(155, 220, 176, 0.14);
+    --vermilion:      #f04324;
+    --vermilion-dim:  rgba(240, 67, 36, 0.14);
     --text:       #f2f2f0;
     --grey:       #a0a09d;
     --grey-dim:   #6d6d6a;
@@ -46,7 +45,7 @@
 
   .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
 
-  a { color: var(--mint); }
+  a { color: var(--vermilion); }
 
   h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
 
@@ -59,7 +58,7 @@
     overflow: hidden;
   }
 
-  /* Same mint bloom as the social card, behind the icon. */
+  /* Same vermilion bloom as the social card, behind the icon. */
   header::before {
     content: "";
     position: absolute;
@@ -67,7 +66,7 @@
     width: 760px; height: 760px;
     transform: translateX(-50%);
     background: radial-gradient(closest-side,
-                rgba(155, 220, 176, 0.11), rgba(155, 220, 176, 0) 72%);
+                rgba(240, 67, 36, 0.12), rgba(240, 67, 36, 0) 72%);
     pointer-events: none;
   }
 
@@ -80,7 +79,7 @@
   .tagline {
     font-size: 25px;
     font-weight: 500;
-    color: var(--mint);
+    color: var(--vermilion);
     margin: 14px 0 0;
     letter-spacing: -0.01em;
   }
@@ -102,7 +101,7 @@
 
   .button {
     display: inline-block;
-    background: var(--mint);
+    background: var(--vermilion);
     color: #0d0d0c;
     font-size: 18px;
     font-weight: 600;
@@ -110,12 +109,12 @@
     padding: 15px 32px;
     border-radius: 999px;
     transition: transform 0.12s ease, box-shadow 0.12s ease;
-    box-shadow: 0 0 0 0 rgba(155, 220, 176, 0.4);
+    box-shadow: 0 0 0 0 rgba(240, 67, 36, 0.4);
   }
 
   .button:hover {
     transform: translateY(-1px);
-    box-shadow: 0 8px 30px -8px rgba(155, 220, 176, 0.55);
+    box-shadow: 0 8px 30px -8px rgba(240, 67, 36, 0.55);
   }
 
   .under-button {
@@ -206,8 +205,8 @@
     justify-content: center;
     width: 26px; height: 26px;
     border-radius: 50%;
-    background: var(--mint-dim);
-    color: var(--mint);
+    background: var(--vermilion-dim);
+    color: var(--vermilion);
     font-size: 13px;
     font-weight: 700;
     margin-bottom: 12px;
@@ -228,7 +227,7 @@
 
   ul.plain li:last-child { border-bottom: 0; }
 
-  ul.plain .k { color: var(--mint); flex: 0 0 auto; }
+  ul.plain .k { color: var(--vermilion); flex: 0 0 auto; }
 
   ul.plain .v { color: var(--grey); font-size: 16px; }
 
@@ -237,7 +236,7 @@
   .callout {
     background: var(--ink-raised);
     border: 1px solid var(--line);
-    border-left: 3px solid var(--mint);
+    border-left: 3px solid var(--vermilion);
     border-radius: var(--radius);
     padding: 22px 24px;
     color: var(--grey);
@@ -258,7 +257,7 @@
   }
 
   footer a { color: var(--grey); text-decoration: none; }
-  footer a:hover { color: var(--mint); }
+  footer a:hover { color: var(--vermilion); }
   footer .links { margin-bottom: 14px; display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; }
 
   /* ------------------------------------------------------------ narrower */
@@ -275,6 +274,187 @@
     .demo { padding: 20px 16px; }
     section { padding: 44px 0; }
     h2 { font-size: 24px; }
+  }
+
+  /* Good Pair alignment ----------------------------------------------------
+     Speak keeps its words and demo, but adopts Listen's restrained, text-first
+     presentation. Red is now a precise product cue, not a visual atmosphere. */
+  :root { --radius: 8px; }
+
+  body {
+    font: 400 15px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .wrap { max-width: 720px; }
+
+  header {
+    text-align: left;
+    padding: 84px 0 64px;
+    overflow: visible;
+  }
+
+  header::before { display: none; }
+
+  .icon { width: 104px; height: 104px; margin: 0 0 22px; }
+
+  h1 { font-size: 40px; font-weight: 700; margin: 0 0 12px; }
+
+  .tagline {
+    color: var(--grey);
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.65;
+    margin: 0 0 8px;
+    letter-spacing: normal;
+  }
+
+  .tagline span { color: inherit; }
+
+  .lede {
+    max-width: none;
+    color: var(--grey);
+    font-size: 15px;
+    margin: 0;
+  }
+
+  .lede strong { color: var(--text); font-weight: 600; }
+
+  .cta { margin-top: 36px; }
+
+  .button {
+    border: 1px solid var(--vermilion);
+    border-radius: 8px;
+    box-shadow: none;
+    font: inherit;
+    font-weight: 600;
+    padding: 10px 18px;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+
+  .button:hover {
+    background: #d83b20;
+    border-color: #d83b20;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .under-button {
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 16px 0 0;
+  }
+
+  .under-button code,
+  kbd {
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  #install code {
+    background: var(--ink-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--grey);
+    font-size: 13px;
+    padding: 2px 6px;
+  }
+
+  .demo {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+    padding: 0 0 40px;
+  }
+
+  .demo-video { border-radius: 0; }
+
+  .demo-caption {
+    justify-content: flex-start;
+    margin-top: 14px;
+  }
+
+  section { padding: 40px 0; }
+
+  h2 {
+    color: var(--grey);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: normal;
+    margin: 0 0 20px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: normal;
+    margin: 28px 0 6px;
+  }
+
+  .sub { color: var(--text); margin: 0 0 16px; }
+
+  .steps,
+  .steps.two { display: block; }
+
+  .steps.two[style] { margin-top: 28px !important; }
+
+  .step {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .step + .step { margin-top: 28px; }
+
+  .step .n {
+    background: transparent;
+    border-radius: 0;
+    color: var(--vermilion);
+    display: block;
+    font: inherit;
+    font-weight: 600;
+    height: auto;
+    margin: 0 0 4px;
+    width: auto;
+  }
+
+  .step h3 { font-size: 15px; font-weight: 600; margin: 0 0 6px; }
+  .step p { color: var(--grey); font-size: 15px; line-height: 1.65; }
+
+  .callout {
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0;
+    border-top: 1px solid var(--line);
+    padding: 16px 0;
+  }
+
+  .callout p + p { margin-top: 12px; }
+
+  ul.plain li { gap: 12px; padding: 12px 0; }
+  ul.plain .k { color: var(--vermilion); }
+  ul.plain .v { font-size: 15px; line-height: 1.65; }
+
+  footer {
+    font-size: 13px;
+    padding: 40px 0 80px;
+    text-align: left;
+  }
+
+  footer .links { gap: 16px; justify-content: flex-start; }
+
+  @media (max-width: 620px) {
+    header { padding: 60px 0 40px; }
+    h1 { font-size: 40px; }
+    .tagline { font-size: 17px; }
+    .lede { font-size: 15px; }
+    .demo { padding-bottom: 32px; }
+    section { padding: 36px 0; }
+    h2 { font-size: 15px; }
   }
 </style>
 </head>
@@ -293,10 +473,9 @@
     </p>
 
     <div class="cta">
-      <a class="button" href="https://github.com/mugoosse/speak/releases/latest/download/Speak.dmg">Download for Mac</a>
+      <a class="button" href="https://github.com/mugoosse/speak/releases/latest/download/Speak.dmg">Download for macOS</a>
       <p class="under-button">
-        Free and open source. Apple silicon, macOS 14 or later.<br />
-        Homebrew: <code>brew install --cask mugoosse/tap/speak</code>
+        Apple silicon, macOS 14 or later.
       </p>
     </div>
   </div>
@@ -422,12 +601,26 @@
     </p>
   </section>
 
+  <section>
+    <h2>Its companion</h2>
+    <p class="sub">For whole conversations, there is
+      <a href="https://mugoosse.github.io/listen/">Listen</a>. It records your
+      meetings on your Mac, writes them down and works out who said what.</p>
+  </section>
+
+  <section id="install">
+    <h2>Other ways to install</h2>
+    <p class="sub">Prefer Homebrew?</p>
+    <p><code>brew install --cask mugoosse/tap/speak</code></p>
+  </section>
+
 </div>
 
 <footer>
   <div class="wrap">
     <div class="links">
-      <a href="https://github.com/mugoosse/speak">GitHub</a>
+      <a href="https://github.com/mugoosse/speak">Source</a>
+      <a href="#install">Homebrew</a>
       <a href="https://github.com/mugoosse/speak#manual">Manual</a>
       <a href="https://github.com/mugoosse/speak#troubleshooting">Troubleshooting</a>
       <a href="https://github.com/mugoosse/speak/issues">Report a problem</a>

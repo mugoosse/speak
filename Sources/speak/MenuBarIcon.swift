@@ -2,10 +2,9 @@ import AppKit
 
 /// Every appearance the menu bar icon can take, and the artwork for each.
 ///
-/// The steady states draw Speak's own mark: the slab-serif I-beam from the app
-/// icon. They used to be Apple's stock `mic`, which meant nothing in the menu
-/// bar pointed at this app in particular. People could not tell whose icon it
-/// was, and a microphone is the single most common thing to find up there.
+/// The steady states draw Speak's Good Pair seal. Its square stamp carries 言
+/// (speak): a compact, ownable companion to Listen's 聞 (hear), rather than a
+/// stock microphone or a tiny version of the Dock artwork.
 ///
 /// The exceptional states stay on system symbols. A download arrow and a
 /// warning triangle are understood instantly; branding them would trade a
@@ -14,9 +13,8 @@ import AppKit
 ///
 /// The mark is drawn rather than shipped as an asset because the app has no
 /// asset catalog, and adding one would mean putting `actool` into a build that
-/// already has to be coaxed through `xcodebuild`. Drawing also makes the slash
-/// and the recording plate derivations of one path instead of three files to
-/// keep in sync.
+/// already has to be coaxed through `xcodebuild`. Drawing keeps the slash and
+/// recording plate derivations of the same gesture instead of separate files.
 @MainActor
 enum MenuBarIcon: Hashable {
     case ready
@@ -40,19 +38,16 @@ enum MenuBarIcon: Hashable {
         case .transcribing: return Self.symbol("hourglass", side)
         case .downloading:  return Self.symbol("arrow.down.circle", side)
         case .failed:       return Self.symbol("exclamationmark.triangle", side)
-        case .ready:        return Self.drawn(self, side) { S in beam(S).fill() }
+        case .ready:        return Self.drawn(self, side) { S in seal(S) }
         case .idle:         return Self.drawn(self, side) { S in
-            beam(S).fill()
+            seal(S)
             slash(S)
         }
         case .recording:    return Self.drawn(self, side) { S in
             plate(S).fill()
-            // Knocking the mark out of a filled slab reads as "live" across a
-            // glance, in both menu bar appearances, without colour. A tint
-            // would not survive a dark menu bar or a tinted desktop behind it.
-            NSGraphicsContext.current?.cgContext.setBlendMode(.clear)
-            beam(S, k: 0.70).fill()
-            NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
+            // The same seal inverts inside the existing live-state plate, so
+            // recording remains legible without relying on colour.
+            seal(S, inverted: true)
         }
         }
     }
@@ -66,38 +61,41 @@ enum MenuBarIcon: Hashable {
     /// What the menu builder sizes its own symbols to.
     private static let menuSide: CGFloat = 15
 
-    /// Proportions taken from `Assets/icon-master.png`: wide slabs, a stem
-    /// about a third of their width. The stem is drawn as a capsule so it
-    /// carries a hint of a microphone body at the size this is actually seen.
-    private func beam(_ S: CGFloat, k: CGFloat = 1) -> NSBezierPath {
-        // Snapped to whole pixels. The mark is nothing but axis-aligned bars,
-        // and a slab that lands on a half pixel renders grey and soft at the
-        // size this is actually read at. Half-extents are rounded rather than
-        // widths, so the result stays symmetric about the centre.
-        let cx = (S / 2).rounded()
-        let h = (S * 0.86 * k).rounded()
-        let halfW = (S * 0.66 * k / 2).rounded()
-        let slab = max(1, (h * 0.12).rounded())
-        let halfStem = max(1, (halfW * 0.37).rounded())
-        let y0 = ((S - h) / 2).rounded()
+    /// Both apps share this exact 14/16-square stamp envelope. The character
+    /// is the only difference, which makes the marks a family rather than two
+    /// unrelated controls.
+    private func seal(_ S: CGFloat, inverted: Bool = false) {
+        let stamp = NSBezierPath(roundedRect: NSRect(x: S * 0.0625, y: S * 0.0625,
+                                                      width: S * 0.875, height: S * 0.875),
+                                 xRadius: S * 0.203, yRadius: S * 0.203)
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
 
-        let p = NSBezierPath()
-        p.append(roundedBar(cx: cx, y: y0, w: halfW * 2, h: slab))
-        p.append(roundedBar(cx: cx, y: y0 + h - slab, w: halfW * 2, h: slab))
-        // The stem runs the full height so its rounded ends finish inside the
-        // slabs. Stopping short would leave a visible seam at one size and a
-        // notch at another, because where "short" lands moves with the scale.
-        p.append(NSBezierPath(
-            roundedRect: NSRect(x: cx - halfStem, y: y0,
-                                width: halfStem * 2, height: h),
-            xRadius: halfStem, yRadius: halfStem))
-        p.windingRule = .nonZero
-        return p
+        if inverted {
+            context.setBlendMode(.clear)
+            stamp.fill()
+            context.setBlendMode(.normal)
+            drawCharacter("言", side: S)
+        } else {
+            stamp.fill()
+            context.setBlendMode(.clear)
+            drawCharacter("言", side: S)
+            context.setBlendMode(.normal)
+        }
     }
 
-    private func roundedBar(cx: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> NSBezierPath {
-        NSBezierPath(roundedRect: NSRect(x: cx - w / 2, y: y, width: w, height: h),
-                     xRadius: h * 0.34, yRadius: h * 0.34)
+    private func drawCharacter(_ character: String, side: CGFloat) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        let font = NSFont(name: "HiraginoSans-W8", size: side * 0.67)
+            ?? NSFont.systemFont(ofSize: side * 0.67, weight: .heavy)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.black,
+            .paragraphStyle: paragraph,
+        ]
+        let glyph = NSAttributedString(string: character, attributes: attributes)
+        glyph.draw(in: NSRect(x: side * 0.14, y: side * 0.145,
+                              width: side * 0.72, height: side * 0.72))
     }
 
     /// The system's slash treatment: a diagonal with a cleared gutter either

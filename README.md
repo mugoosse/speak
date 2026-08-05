@@ -130,16 +130,17 @@ The menu bar icon tracks state:
 
 | Icon | Meaning |
 |---|---|
-| the I-beam | ready |
-| the I-beam, crossed out | loading the model, or setup unfinished |
-| the I-beam, knocked out of a filled square | recording |
+| the Good Pair speaking seal | ready |
+| the Good Pair speaking seal, crossed out | loading the model, or setup unfinished |
+| the Good Pair speaking seal, inverted in a filled square | recording |
 | hourglass | transcribing |
 | download arrow | fetching the model, with elapsed time |
 | warning triangle | see the menu for what went wrong |
 
-The mark is Speak's own I-beam, the same one on the app icon, so it is possible
-to tell which app it belongs to. Clicking it names the app at the top of the
-menu.
+The mark is the Good Pair's speaking seal, carrying 言 (speak). Listen carries
+the matching 聞 (hear) seal: together they reference the Japanese roots of the
+three wise monkeys without trying to shrink either mascot into 16 points.
+Clicking it names the app at the top of the menu.
 
 A small floating pill says the same thing on screen, where you are actually
 looking: **Listening** with a red dot and a running timer, then **Transcribing…**,
