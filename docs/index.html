@@ -310,6 +310,8 @@
 
   .tagline span { color: inherit; }
 
+  .claim { color: var(--vermilion); margin: 0 0 36px; }
+
   .lede {
     max-width: none;
     color: var(--grey);
@@ -318,6 +320,8 @@
   }
 
   .lede strong { color: var(--text); font-weight: 600; }
+
+  p.lead { color: var(--text); margin: 0 0 16px; }
 
   .cta { margin-top: 36px; }
 
@@ -351,13 +355,24 @@
     border-radius: 6px;
   }
 
-  #install code {
+  #install .sub { color: var(--grey); }
+
+  #install pre {
     background: var(--ink-raised);
     border: 1px solid var(--line);
     border-radius: 6px;
-    color: var(--grey);
+    font: inherit;
     font-size: 13px;
-    padding: 2px 6px;
+    margin: 0 0 16px;
+    overflow-x: auto;
+    padding: 14px 16px;
+  }
+
+  #install code {
+    background: none;
+    border: 0;
+    color: var(--grey);
+    padding: 0;
   }
 
   .demo {
@@ -446,6 +461,8 @@
   }
 
   footer .links { gap: 16px; justify-content: flex-start; }
+  footer p { color: var(--grey-dim); margin: 0 0 16px; }
+  footer p:last-child { margin-bottom: 0; }
 
   @media (max-width: 620px) {
     header { padding: 60px 0 40px; }
@@ -464,19 +481,11 @@
   <div class="wrap">
     <img class="icon" src="icon.png" alt="" />
     <h1>Speak</h1>
-    <p class="tagline">Talk instead of typing.<br /><span>Anywhere on your Mac.</span></p>
-
-    <p class="lede">
-      Press a shortcut, say what you mean, press it again. Your words appear in
-      whatever app you are already in: an email, Slack, a search bar, a code
-      comment. <strong>Free, and your voice never leaves your Mac.</strong>
-    </p>
+    <p class="tagline">Turns your voice into text, wherever you are typing.</p>
+    <p class="claim">Entirely on your Mac. No account, nothing uploaded.</p>
 
     <div class="cta">
       <a class="button" href="https://github.com/mugoosse/speak/releases/latest/download/Speak.dmg">Download for macOS</a>
-      <p class="under-button">
-        Apple silicon, macOS 14 or later.
-      </p>
     </div>
   </div>
 </header>
@@ -492,25 +501,12 @@
   </div>
 
   <section>
-    <h2>How it works</h2>
-    <p class="sub">Three steps, and then it is out of your way.</p>
-    <div class="steps">
-      <div class="step">
-        <span class="n">1</span>
-        <h3>Press</h3>
-        <p>A shortcut you pick, from anywhere. No window to open, no app to switch to.</p>
-      </div>
-      <div class="step">
-        <span class="n">2</span>
-        <h3>Speak</h3>
-        <p>Say it the way you would say it out loud. The menu bar shows a red dot while it listens.</p>
-      </div>
-      <div class="step">
-        <span class="n">3</span>
-        <h3>Press again</h3>
-        <p>Your words land in whatever was focused, and stay on the clipboard so &#8984;V works too.</p>
-      </div>
-    </div>
+    <h2>What it does</h2>
+    <p class="lead">Press a shortcut, say what you mean, press it again. Your
+      words appear in whatever app you are already in: an email, Slack, a
+      search bar or a code comment.</p>
+    <p>The menu bar shows a red dot while Speak is listening. Your words stay
+      on the clipboard too, so &#8984;V works wherever you need it.</p>
   </section>
 
   <section>
@@ -611,25 +607,26 @@
   <section id="install">
     <h2>Other ways to install</h2>
     <p class="sub">Prefer Homebrew?</p>
-    <p><code>brew install --cask mugoosse/tap/speak</code></p>
+    <pre><code>brew install --cask mugoosse/tap/speak</code></pre>
+    <p>Apple Silicon, macOS 14 or later. The optional AI polish needs macOS 26.</p>
+    <p>The speech model downloads on first run only if you choose Parakeet.
+      If you already use Listen with the same model, it is already on your disk,
+      and Speak will find it rather than fetching it twice.</p>
   </section>
 
 </div>
 
 <footer>
   <div class="wrap">
-    <div class="links">
+    <p>Made by <a href="https://maxgoespublic.com/">Maxime Goossens</a>.
       <a href="https://github.com/mugoosse/speak">Source</a>
-      <a href="#install">Homebrew</a>
+      · <a href="https://github.com/mugoosse/speak/blob/main/LICENSE">AGPL&#8239;3.0</a>
+      · <a href="#install">Homebrew</a></p>
+    <p>
       <a href="https://github.com/mugoosse/speak#manual">Manual</a>
-      <a href="https://github.com/mugoosse/speak#troubleshooting">Troubleshooting</a>
-      <a href="https://github.com/mugoosse/speak/issues">Report a problem</a>
-    </div>
-    <div>
-      Made by <a href="https://maxgoespublic.com/">Maxime Goossens</a>.
-      Free software under
-      <a href="https://github.com/mugoosse/speak/blob/main/LICENSE">AGPL&#8239;3.0</a>.
-    </div>
+      · <a href="https://github.com/mugoosse/speak#troubleshooting">Troubleshooting</a>
+      · <a href="https://github.com/mugoosse/speak/issues">Report a problem</a></p>
+    <p>Built on Parakeet, MLX by Apple, and Sparkle.</p>
   </div>
 </footer>
 

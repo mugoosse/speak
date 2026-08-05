@@ -930,6 +930,7 @@ final class HistoryPane: Pane, NSTableViewDataSource, NSTableViewDelegate {
     private var entries: [History.Entry] = []
     private var table: NSTableView!
     private var empty: NSTextField!
+    private var emptyIcon: NSImageView!
 
     /// Re-read on every appearance. The pane is built once but dictations keep
     /// arriving behind it, so without this the table shows whatever existed
@@ -943,6 +944,7 @@ final class HistoryPane: Pane, NSTableViewDataSource, NSTableViewDelegate {
         entries = History.recent(500)
         table?.reloadData()
         empty?.isHidden = !entries.isEmpty
+        emptyIcon?.isHidden = !entries.isEmpty
     }
 
     override func build() {
@@ -977,6 +979,10 @@ final class HistoryPane: Pane, NSTableViewDataSource, NSTableViewDelegate {
         scroll.widthAnchor.constraint(equalToConstant: 470).isActive = true
         scroll.heightAnchor.constraint(equalToConstant: 250).isActive = true
         stack.addArrangedSubview(scroll)
+
+        emptyIcon = BrandIcon.view(size: 40, accessibilityLabel: "Speak mascot")
+        emptyIcon.isHidden = !entries.isEmpty
+        stack.addArrangedSubview(emptyIcon)
 
         empty = caption("Nothing yet. Dictations appear here as you make them.")
         empty.isHidden = !entries.isEmpty

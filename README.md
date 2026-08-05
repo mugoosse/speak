@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="110" alt="Speak" src="Assets/icon.png" />
+  <img width="110" alt="Speak red monkey app icon" src="Assets/icon.png" />
 </p>
 
 <h1 align="center">Speak</h1>
@@ -23,16 +23,21 @@ whatever app you are already in: an email, Slack, a search bar, a code comment.
 Free, no account, and your voice never leaves your Mac. **There is no account
 because there is no server.** That is the whole app.
 
+Speak is the red half of the Good Pair: a speaking monkey with its hands around
+an open mouth. In the menu bar, it uses the Good Pair's square speaking seal,
+carrying 言 (speak), so the family resemblance remains clear at 16 points.
+
 ## Download
 
-### **[Download Speak for Mac](https://github.com/mugoosse/speak/releases/latest/download/Speak.dmg)**
+### **[Download Speak for macOS](https://github.com/mugoosse/speak/releases/latest/download/Speak.dmg)**
 
 Open the downloaded file and drag **Speak** to Applications. It is signed and
 notarized by Apple, so it opens normally, with no "unidentified developer"
 warning to click through.
 
-<details>
-<summary>Prefer Homebrew?</summary>
+### Other ways to install
+
+Prefer Homebrew?
 
 ```sh
 brew install --cask mugoosse/tap/speak
@@ -40,8 +45,6 @@ brew install --cask mugoosse/tap/speak
 
 Homebrew installs update with `brew upgrade --cask speak` rather than through
 the in-app updater. The two do not fight.
-
-</details>
 
 ### What you need
 

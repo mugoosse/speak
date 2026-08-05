@@ -248,6 +248,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
     // MARK: - Steps
 
     private func buildWelcome(_ v: NSStackView) {
+        v.addArrangedSubview(BrandIcon.view(size: 64, accessibilityLabel: "Speak mascot"))
         // What you get, not what the app is. Three lines, in the order someone
         // actually cares about them.
         v.addArrangedSubview(bullet("mic.fill", "Talk instead of typing",
@@ -779,6 +780,7 @@ final class Onboarding: NSObject, NSWindowDelegate {
 
 
     private func buildDone(_ v: NSStackView) {
+        v.addArrangedSubview(BrandIcon.view(size: 44, accessibilityLabel: "Speak is ready"))
         v.addArrangedSubview(paragraph(
             "Press \(Shortcut.description) to start, talk, press it again to "
             + "stop. The transcript is pasted where you are typing, and stays "
