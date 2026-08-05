@@ -160,14 +160,20 @@ Two lines change per release, the version and the sha256 of the versioned DMG,
 so this cannot happen until the DMG exists. The hash is already in
 `dist/SHA256SUMS.txt`; take it from there rather than recomputing it.
 
-The workflow is the route. It needs `HOMEBREW_TAP_TOKEN`, which is set, though
-it is a token with an expiry rather than a permanent fact, so check before
-dispatching rather than reporting a dispatch that is already dead:
+The workflow is the route. It needs `HOMEBREW_TAP_TOKEN`, which is set on
+`mugoosse/speak` and went green against v1.3.0, so it works; it is a
+fine-grained token with an expiry rather than a permanent fact, though.
 
 ```sh
 gh secret list | grep HOMEBREW_TAP_TOKEN
 gh workflow run homebrew-tap.yml -f tag=v1.4.0
 ```
+
+That first line is a prefilter and nothing more. An expired token is still
+listed, with an `updated` date that says nothing about whether it works, so a
+present secret is not evidence of a dispatch that will succeed. The run is the
+evidence, which is why the next step watches it rather than reporting the
+dispatch.
 
 **Watch the run rather than assuming it worked**, and read what it actually
 did. It verifies its download against `SHA256SUMS.txt` and asserts both edited
@@ -220,10 +226,27 @@ Check the status line is empty either way. A dirty tapped clone is a broken
 Commit as `speak 1.4.0`, matching the tap's history. Ask before pushing the
 tap: it is a public repository, and a different one from the release.
 
-## 8. Report
+## 8. Check the feed, then report
+
+The appcast is what every installed copy fetches, and the only place a problem
+with it shows up is on somebody else's Mac, days later, as an update that never
+arrives. It is one request against the published asset, so make it:
+
+```sh
+curl -sL https://github.com/mugoosse/speak/releases/latest/download/appcast.xml \
+    | grep -cE '<description|edSignature='        # must print 2
+```
+
+Two, not one. A feed with a signature and no description is the 1.3.0 bug back
+again, and a feed with a description and no signature is refused by every
+client. Zero means the asset is missing from the release, and the URL is what
+users resolve, not what `dist/` holds.
+
+Then report:
 
 - the release URL
 - whether the cask went by workflow or by hand, and whether it is pushed
+- what the feed check printed
 - anything the run warned about
 
 The download page needs no change: `docs/index.html` links
