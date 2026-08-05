@@ -331,7 +331,13 @@ cp "$DMG" "$LATEST_DMG"
 # model. The zip is the update archive: Sparkle can install from a DMG, but a
 # zip needs no mounting step.
 
-GENERATE_APPCAST=$(find "$ROOT/.build/artifacts" -name generate_appcast -type f 2>/dev/null | head -1)
+# Both trees, and the xcodebuild one first, because that is the one build.sh
+# fills. A machine that has only ever done what CLAUDE.md says has no
+# .build/artifacts at all: that directory comes from `swift build`, which this
+# project tells people not to run. Searching only there found nothing, and
+# nothing was a warning that published a release with no feed in it.
+GENERATE_APPCAST=$(find "$ROOT/.xcbuild/SourcePackages/artifacts" \
+    "$ROOT/.build/artifacts" -name generate_appcast -type f 2>/dev/null | head -1)
 if [ -n "$GENERATE_APPCAST" ]; then
     FEED="https://github.com/mugoosse/speak/releases/latest/download/appcast.xml"
     # generate_appcast works on a directory of archives and writes the feed
@@ -372,17 +378,32 @@ if [ -n "$GENERATE_APPCAST" ]; then
         "$ARCHIVES" >"$LOG" 2>&1
     then
         mv "$ARCHIVES/appcast.xml" "$APPCAST"
-        echo "appcast: $(basename "$APPCAST") (feed $FEED)"
+        # generate_appcast writes a feed whether or not it managed to sign
+        # anything, so the file existing is not evidence that it did. An entry
+        # with no edSignature is one every client refuses, which is an update
+        # channel that looks published and never works.
+        if grep -q 'edSignature=' "$APPCAST"; then
+            echo "appcast: $(basename "$APPCAST") (feed $FEED)"
+        else
+            echo "error: the appcast carries no edSignature, so nothing signed" >&2
+            echo "       it and every installed copy would refuse the update." >&2
+            if [ "$PUBLISH" -eq 1 ]; then exit 1; fi
+        fi
     else
-        # With the reason, not without it. A silent failure here is an update
-        # channel that is simply absent from the release, and the next thing
-        # anyone hears about it is nobody updating.
-        echo "warning: generate_appcast failed. Updates will not be offered." >&2
-        sed 's/^/         /' "$LOG" >&2
+        # With the reason, not without it, and not published either way.
+        echo "error: generate_appcast failed. Updates would not be offered." >&2
+        sed 's/^/       /' "$LOG" >&2
+        if [ "$PUBLISH" -eq 1 ]; then exit 1; fi
     fi
     rm -rf "$ARCHIVES" "$LOG"
 else
-    echo "warning: generate_appcast not found. Run: swift package resolve" >&2
+    # Publishing without one is not a warning. The feed is a release asset, so
+    # a release that omits it leaves /releases/latest/download/appcast.xml
+    # answering 404 to every installed copy that checks, and the only symptom
+    # is nobody updating.
+    echo "error: generate_appcast not found. Run ./build.sh, or:" >&2
+    echo "       swift package resolve" >&2
+    if [ "$PUBLISH" -eq 1 ]; then exit 1; fi
 fi
 
 # --- checksums -------------------------------------------------------------

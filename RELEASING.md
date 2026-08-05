@@ -102,6 +102,25 @@ no second file to keep published.
 Every feed up to and including 1.3.0 carried no description at all, so the only
 thing an updater was given to decide on was a version number.
 
+### An unsigned or absent feed is not a warning
+
+`--publish` refuses three things about the appcast, all of which used to print
+a warning and publish anyway: `generate_appcast` missing, `generate_appcast`
+failing, and a feed that comes back with no `edSignature`. The first two end
+with no `appcast.xml` among the release assets, so
+`/releases/latest/download/appcast.xml` answers 404 to every installed copy
+that checks. The third publishes a feed every copy refuses, since an unsigned
+update is an arbitrary-code-execution channel and Sparkle treats it as one.
+None of the three is visible from here: the release page looks complete, and
+the only symptom is nobody updating.
+
+`generate_appcast` is looked for under `.xcbuild/SourcePackages/artifacts`
+before `.build/artifacts`. `build.sh` fills the first; the second only exists
+if someone ran `swift build`, which this project tells people not to do. A
+machine that has only ever followed the documented path has no
+`.build/artifacts` at all, which is precisely when the missing-tool warning
+used to fire.
+
 ## Two version numbers
 
 | Field | Value | Source |

@@ -147,8 +147,12 @@ rebuild: the ticket is keyed to the bundle's cdhash, so a rebuilt bundle
 cannot be stapled with it.
 
 Everything it refuses to do is deliberate and none of it should be worked
-around. In particular it will not publish a build Gatekeeper rejects, or one
-whose changelog does not open on this version.
+around. In particular it will not publish a build Gatekeeper rejects, one whose
+changelog does not open on this version, or one whose appcast is missing or
+unsigned. That last one is worth waiting out rather than reaching past: an
+absent feed is a 404 for every installed copy that checks for updates, and an
+unsigned one is refused by all of them, and neither is visible from the release
+page afterwards.
 
 ## 7. Update the Homebrew cask
 

@@ -592,6 +592,20 @@ updater fetches a 404 into the pane. The notes file has to be named after the
 archive and sit beside it in the archives directory, and it is written after
 `release.sh` wipes `dist/`, or the wipe takes it.
 
+### Nothing about the appcast may be a warning under --publish
+
+A missing `generate_appcast`, a failed run and a feed with no `edSignature` all
+used to print a warning and publish regardless. The first two ship a release
+with no feed in it, so `/releases/latest/download/appcast.xml` is a 404 for
+every copy that checks; the third ships one every copy refuses. All three are
+invisible from here, and the symptom is nobody updating, so `--publish` exits
+on each.
+
+The tool is searched for under `.xcbuild/SourcePackages/artifacts` first.
+`build.sh` fills that; `.build/artifacts` comes from `swift build`, which this
+project tells you not to run, so looking only there found nothing on a machine
+that had done everything right.
+
 ### Notarization is not a synchronous step
 
 Apple's queue has taken over an hour on a first submission, and a dropped
