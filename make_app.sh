@@ -44,6 +44,9 @@ done
 if [ -f "$ROOT/Assets/Speak.icns" ]; then
     cp "$ROOT/Assets/Speak.icns" "$APP/Contents/Resources/Speak.icns"
 fi
+if [ -f "$ROOT/Assets/MenuBarTemplate.png" ]; then
+    cp "$ROOT/Assets/MenuBarTemplate.png" "$APP/Contents/Resources/MenuBarTemplate.png"
+fi
 
 # A machine-readable statement of every outbound connection, read by firewall
 # tools such as Little Snitch. Speak claims nothing leaves the machine, and an
