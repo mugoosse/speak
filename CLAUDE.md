@@ -581,9 +581,9 @@ every time, so nothing accumulated and no release ever said what was in it.
 Every feed up to 1.3.0 carried no description at all.
 
 A section runs to the next heading that is `##` followed by a version number,
-not to the next `##` of any kind. Speak's entries carry their own `##`
-sub-headings, so a parser keyed on heading level publishes the first paragraph
-and silently drops the rest.
+not to the next `##` of any kind, so an entry can use any heading level it
+likes. The boilerplate this replaced used `##` throughout, and a parser keyed
+on heading level publishes the first paragraph and silently drops the rest.
 
 `--embed-release-notes` on `generate_appcast` is not optional. Without it a
 `.md` notes file becomes a `<sparkle:releaseNotesLink>` pointing at

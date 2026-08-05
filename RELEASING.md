@@ -85,9 +85,10 @@ release page reads perfectly well, it just describes a different build, and so
 does the pane every user decides on.
 
 A section ends at the next heading that is `##` followed by a version number,
-rather than at the next `##` of any kind, so an entry can carry its own
-sub-headings. The 1.3.0 entry has four, and a parser keyed on heading level
-would have published its first paragraph and dropped the rest.
+rather than at the next `##` of any kind, so an entry can carry sub-headings at
+whatever level reads best, `##` included. The boilerplate this replaced had
+four of them at `##`, and a parser keyed on heading level would have published
+its first paragraph and dropped the rest.
 
 ### Sparkle needs the notes embedded, not linked
 
