@@ -133,20 +133,21 @@ The menu bar icon tracks state:
 
 | Icon | Meaning |
 |---|---|
-| the Good Pair speaking seal | ready |
-| the Good Pair speaking seal, crossed out | loading the model, or setup unfinished |
-| the Good Pair speaking seal, inverted in a filled square | recording |
+| the monkey | ready, recording, or loading the model |
 | hourglass | transcribing |
 | download arrow | fetching the model, with elapsed time |
 | warning triangle | see the menu for what went wrong |
 
-The mark is the Good Pair's speaking seal, carrying 言 (speak). Listen carries
-the matching 聞 (hear) seal: together they reference the Japanese roots of the
-three wise monkeys without trying to shrink either mascot into 16 points.
-Clicking it names the app at the top of the menu.
+The steady states all share one mark, Speak's calling monkey, drawn as a
+monochrome template so it sits with the rest of the menu bar. A slash or a
+badge small enough to fit beside it costs more legibility than the state is
+worth up there, so the transient state is carried by the tooltip and by the
+command text in the menu instead. Clicking the icon also names the app at the
+top of the menu.
 
-A small floating pill says the same thing on screen, where you are actually
-looking: **Listening** with a red dot and a running timer, then **Transcribing…**,
+Recording is not something to squint at the menu bar for, and it does not have
+to be: a small floating pill says the same thing on screen, where you are
+actually looking. **Listening** with a red dot and a running timer, then **Transcribing…**,
 then **Polishing…** if that is switched on. A dictation long enough to be split
 into several requests counts them off, **Polishing 2/4…**, so a long wait is
 visibly progress rather than a hang. Turn the pill off in Settings → General.

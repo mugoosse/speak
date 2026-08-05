@@ -58,7 +58,7 @@ that one dies looking for Sparkle, and it reads a different defaults domain.
 |---|---|
 | `main.swift` | entry point and the `--transcribe` CLI mode |
 | `AppDelegate.swift` | menu bar, event tap, dictation toggle, model state |
-| `MenuBarIcon.swift` | the status item artwork: one case per state, drawn |
+| `MenuBarIcon.swift` | the status item artwork: the mascot template plus the system symbols |
 | `Config.swift` | `ModelChoice`, `Settings`, `Shortcut`, `Modifier`, `KeyName`, `ModelStatus` |
 | `Recorder.swift` | `AVAudioEngine` capture to 16 kHz mono Float32 |
 | `Transcriber.swift` | routes to Parakeet (MLX) or Apple Intelligence |
