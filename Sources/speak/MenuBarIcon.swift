@@ -42,9 +42,9 @@ enum MenuBarIcon: Hashable {
 
     // MARK: - Geometry
 
-    /// 16pt square, which is the height Apple's own `mic` reports, so the
-    /// drawn states and the symbol states sit at the same stature.
-    private static let side: CGFloat = 16
+    /// 24pt gives the normalized mascot an 18pt visible footprint, matching
+    /// the surrounding menu-bar apps instead of leaving it as a tiny glyph.
+    private static let side: CGFloat = 24
 
     /// What the menu builder sizes its own symbols to.
     private static let menuSide: CGFloat = 15
