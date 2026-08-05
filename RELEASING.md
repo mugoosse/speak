@@ -7,14 +7,20 @@ have to be done once.
 ## Cutting a release
 
 Releases are cut locally, from a machine holding the signing certificate, the
-notarytool profile and the Sparkle key. This is the whole procedure:
+notarytool profile and the Sparkle key.
+
+`/release` is the shortcut, and it does all of the below: commits and pushes
+what is outstanding, bumps `VERSION`, writes the changelog entry, asks once,
+then publishes and dispatches the cask. It lives in
+`.claude/skills/release/SKILL.md`. By hand:
 
 ```sh
+$EDITOR CHANGELOG.md                   # a '## 1.0.3 (2026-08-12)' section on top
 echo 1.0.3 > VERSION
-# edit RELEASE_NOTES.md only if the boilerplate changed; the changelog itself
-# is generated from the commits since the last tag
-git commit -am "what changed"          # becomes the changelog line
+git commit -am "Speak 1.0.3"
+git push
 ./release.sh --publish
+gh workflow run homebrew-tap.yml -f tag=v1.0.3
 ```
 
 `--publish` tags, pushes the tag, builds, signs, notarizes and staples both the
@@ -22,26 +28,29 @@ app and the DMG, signs the appcast, creates the GitHub release and uploads
 every asset. Without it, `./release.sh` builds and packages into `dist/` and
 publishes nothing, which is the way to check a build before committing to it.
 
-Two things it refuses to do, both deliberate: publish from a dirty working
-tree, since a tag pointing at uncommitted work cannot be rebuilt, and publish
-when the tag and `VERSION` disagree, because a release named `v1.0.3`
-containing `Speak-1.0.2.dmg` is worse than a failed build.
+Do not tag by hand. `release.sh` tags and pushes the tag itself, and it refuses
+to publish when the tag and `VERSION` disagree, because a release named
+`v1.0.3` containing `Speak-1.0.2.dmg` is worse than a failed build. It also
+refuses a dirty working tree, since a tag pointing at uncommitted work cannot
+be rebuilt.
 
-Then update the Homebrew cask, which is a separate repository. See
-[Homebrew](#homebrew) below.
+The Homebrew cask lives in a separate repository and is updated after the
+release exists. See [Homebrew](#homebrew) below.
 
 ### Why not CI
 
 `.github/workflows/release.yml` is complete and does the same work by calling
 the same script, so the two cannot diverge. It is `workflow_dispatch`-only and
-the repository has **no secrets set**, so it will not sign, notarize or publish
-anything as things stand.
+**none of the signing secrets are set**, so it will not sign, notarize or
+publish anything as things stand. The one secret the repository does hold is
+`HOMEBREW_TAP_TOKEN`, which the cask workflow needs and which grants nothing
+here.
 
 That is a choice, not an oversight: it keeps the Developer ID certificate, the
 notarization password and the Sparkle private key off GitHub. The cost is that
-releasing needs the right Mac. To move to CI, set the seven secrets listed
-under [Repository secrets](#repository-secrets) and dispatch the workflow with
-an existing tag.
+releasing needs the right Mac. To move to CI, set the six remaining secrets
+listed under [Repository secrets](#repository-secrets) and dispatch the
+workflow with an existing tag.
 
 ### When notarization stalls
 
@@ -54,6 +63,44 @@ connection costs a retry of the wait rather than the whole upload.
 xcrun notarytool history --keychain-profile speak-notary   # find the id
 ./release.sh --resume <submission-id>
 ```
+
+## The changelog is the only place release notes are written
+
+`CHANGELOG.md`, newest section first, each section starting `##` followed by a
+version number. `release.sh` extracts the top one and uses it twice: as the
+GitHub release body, and as the description embedded in the appcast, which is
+the "what's new" pane Sparkle shows before an update. There is no second file
+to keep in agreement.
+
+That is what `RELEASE_NOTES.md` used to be, and it was overwritten rather than
+appended to, so nothing accumulated and its boilerplate went out unchanged with
+every release. `git log --follow CHANGELOG.md` reaches back through it.
+
+Three things `release.sh` refuses in preflight, before a ten-minute build
+rather than after it: no `CHANGELOG.md`, a top section whose version is not
+`VERSION`, and a top section that is empty. The middle one is the one that
+matters. A changelog left at the previous version publishes the previous
+release's notes under this one's name, and nothing anywhere reports it: the
+release page reads perfectly well, it just describes a different build, and so
+does the pane every user decides on.
+
+A section ends at the next heading that is `##` followed by a version number,
+rather than at the next `##` of any kind, so an entry can carry its own
+sub-headings. The 1.3.0 entry has four, and a parser keyed on heading level
+would have published its first paragraph and dropped the rest.
+
+### Sparkle needs the notes embedded, not linked
+
+`generate_appcast` embeds a release-notes file only when it is HTML. Given the
+`.md` a changelog produces it emits a `<sparkle:releaseNotesLink>` instead,
+and, measured against Speak's own 1.3.0 archive, that link is
+`releases/latest/download/Speak-1.3.0.md`, a file no release uploads. Every
+updater would have fetched a 404 into the pane. With `--embed-release-notes` it
+becomes `<description sparkle:format="markdown">` inside the feed, and there is
+no second file to keep published.
+
+Every feed up to and including 1.3.0 carried no description at all, so the only
+thing an updater was given to decide on was a version number.
 
 ## Two version numbers
 
@@ -136,20 +183,24 @@ Store that in a password manager, then delete the file.
 
 ### Repository secrets
 
-**None of these are set, and a local release needs none of them.** They are
-listed for whoever decides to move releasing into CI. Without them the workflow
-still builds and produces unsigned artifacts rather than failing, which is what
-lets a fork build with no setup at all.
+`HOMEBREW_TAP_TOKEN` is set. **None of the other six are, and a local release
+needs none of them.** They are listed for whoever decides to move releasing
+into CI. Without them the workflow still builds and produces unsigned artifacts
+rather than failing, which is what lets a fork build with no setup at all.
 
-| Secret | How to get it |
-|---|---|
-| `SIGNING_CERTIFICATE_P12` | export the Developer ID cert (below), then `base64 -i cert.p12 \| pbcopy` |
-| `SIGNING_CERTIFICATE_PWD` | the password you chose when exporting the `.p12` |
-| `NOTARY_APPLE_ID` | your Apple ID email |
-| `NOTARY_TEAM_ID` | `BUZ45YDWYN` |
-| `NOTARY_PASSWORD` | the app-specific password |
-| `SPARKLE_PRIVATE_KEY` | contents of `generate_keys -x` |
-| `HOMEBREW_TAP_TOKEN` | fine-grained PAT with contents:write and pull-requests:write on `mugoosse/homebrew-tap` |
+| Secret | Set | How to get it |
+|---|---|---|
+| `HOMEBREW_TAP_TOKEN` | yes | fine-grained PAT with contents:write and pull-requests:write on `mugoosse/homebrew-tap`, and nothing else |
+| `SIGNING_CERTIFICATE_P12` | no | export the Developer ID cert (below), then `base64 -i cert.p12 \| pbcopy` |
+| `SIGNING_CERTIFICATE_PWD` | no | the password you chose when exporting the `.p12` |
+| `NOTARY_APPLE_ID` | no | your Apple ID email |
+| `NOTARY_TEAM_ID` | no | `BUZ45YDWYN` |
+| `NOTARY_PASSWORD` | no | the app-specific password |
+| `SPARKLE_PRIVATE_KEY` | no | contents of `generate_keys -x` |
+
+`HOMEBREW_TAP_TOKEN` is the only one a local release uses, and only after the
+release exists. It expires, unlike the rest, so `gh secret list` is worth a
+look before dispatching the cask workflow rather than after.
 
 Exporting the certificate: Keychain Access, My Certificates, right-click
 **Developer ID Application: JACARANDA LABS LTD EOOD**, Export, `.p12`, choose a
@@ -166,9 +217,21 @@ The cask lives in [mugoosse/homebrew-tap](https://github.com/mugoosse/homebrew-t
 not in `homebrew-cask`. The main repository has notability requirements, roughly
 30+ stars or 75+ days of history, which Speak does not meet yet.
 
-The bump is two lines, `version` and `sha256`, and it is done by hand. The tap
-is normally already checked out beside this repository, so there is nothing to
-clone:
+The bump is two lines, `version` and `sha256`. `homebrew-tap.yml` writes them
+as a pull request, and that is the route: it re-downloads the published DMG,
+checks its hash against the `SHA256SUMS.txt` in the same release rather than
+trusting one download of its own, and asserts both edited lines are what it
+just wrote before committing anything.
+
+```sh
+gh workflow run homebrew-tap.yml -f tag=v1.0.3
+gh pr list --repo mugoosse/homebrew-tap
+```
+
+It opens a pull request, so the cask is not updated until that is merged.
+
+By hand, if the token has expired or the run fails. The tap is normally already
+checked out beside this repository, so there is nothing to clone:
 
 ```sh
 cd ../homebrew-tap
@@ -188,10 +251,6 @@ Verify what users will actually get:
 ```sh
 brew update && brew info --cask mugoosse/tap/speak
 ```
-
-`homebrew-tap.yml` automates the same two lines as a pull request, but it needs
-`HOMEBREW_TAP_TOKEN`, which is not set. Until it is, `gh workflow run
-homebrew-tap.yml` fails on its first step.
 
 Nothing rewrites the caveats or zap stanzas: they are hand-written and not
 derivable from a release, so they survive either way.

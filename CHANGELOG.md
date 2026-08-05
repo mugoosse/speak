@@ -1,3 +1,15 @@
+# Changelog
+
+Newest first. The top section is the release being cut, and it is the **only**
+place its notes are written: `release.sh` reads it for the GitHub release body
+and for the "what's new" pane Sparkle shows before an update, and refuses to
+publish when its version disagrees with `VERSION`.
+
+A section starts at a heading that is `##` followed by a version number, so
+headings inside an entry can be anything that is not one of those.
+
+## 1.3.0 (2026-08-05)
+
 Push-to-talk dictation for macOS. Press a shortcut, talk, press it again, and
 the transcript is on your clipboard. Everything runs on your Mac.
 
@@ -33,13 +45,3 @@ needs no download and works immediately.
 shasum -a 256 Speak-x.y.z.dmg          # compare against SHA256SUMS.txt
 gh attestation verify Speak-x.y.z.dmg --repo mugoosse/speak
 ```
-
----
-
-<!--
-Everything above ships with every release. What changed in THIS one is
-generated below by `gh release create --generate-notes`, from the commits since
-the previous tag. Do not hand-write a changelog here: it would go stale the
-moment it was carried into the next release, which is exactly the bug this
-file used to have.
--->

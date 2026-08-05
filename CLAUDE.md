@@ -562,7 +562,35 @@ Signing uses the Hardened Runtime, which notarization requires. That is why
 the runtime blocks the microphone.
 
 `release.sh` is the only thing that publishes, and CI calls the same script, so
-a local release and a CI release cannot diverge.
+a local release and a CI release cannot diverge. `/release`
+(`.claude/skills/release/SKILL.md`) drives the steps around it and reimplements
+none of them, for the same reason.
+
+### CHANGELOG.md is the only place release notes are written
+
+`release.sh` extracts the top section and uses it twice, as the GitHub release
+body and as the description embedded in the appcast, which is the pane Sparkle
+shows before an update. It refuses to publish when that section is missing,
+empty, or headed with a version that is not `VERSION`. The last one is the
+reason the check exists: a changelog left at the previous version publishes the
+previous release's notes under this one's name, and nothing reports it, because
+the page reads fine and describes a different build.
+
+That replaced `RELEASE_NOTES.md`, which was boilerplate re-shipped verbatim
+every time, so nothing accumulated and no release ever said what was in it.
+Every feed up to 1.3.0 carried no description at all.
+
+A section runs to the next heading that is `##` followed by a version number,
+not to the next `##` of any kind. Speak's entries carry their own `##`
+sub-headings, so a parser keyed on heading level publishes the first paragraph
+and silently drops the rest.
+
+`--embed-release-notes` on `generate_appcast` is not optional. Without it a
+`.md` notes file becomes a `<sparkle:releaseNotesLink>` pointing at
+`releases/latest/download/Speak-x.y.z.md`, which no release uploads, so every
+updater fetches a 404 into the pane. The notes file has to be named after the
+archive and sit beside it in the archives directory, and it is written after
+`release.sh` wipes `dist/`, or the wipe takes it.
 
 ### Notarization is not a synchronous step
 
