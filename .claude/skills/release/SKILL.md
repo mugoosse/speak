@@ -1,9 +1,15 @@
 ---
 name: release
-description: Cut and publish a Speak release. Commits and pushes outstanding work, bumps VERSION, writes the CHANGELOG.md entry, then builds, signs, notarizes and publishes through release.sh, and updates the Homebrew cask. Use when the user says /release, "cut a release", "ship a version", "publish 1.4.0", or asks to put a new build out.
+description: Cut and publish a Speak release. Commit and push outstanding work, bump VERSION, write the CHANGELOG.md entry, then build, sign, notarize and publish through release.sh, and update the Homebrew cask. Use when the user invokes $release or /release, says "cut a release", "ship a version", "publish 1.4.0", or asks to put a new Speak build out.
 ---
 
 # Cutting a release
+
+This skill follows the open agent skills format. Use the current harness's
+normal file-editing, shell, background-process and user-confirmation facilities.
+Do not depend on Claude-only commands or tool names. Treat `$release`, `/release`
+and an equivalent natural-language request as the same invocation. Repository
+instructions such as `AGENTS.md` and `CLAUDE.md` still apply.
 
 `release.sh` is the only thing that publishes, and CI calls the same script, so
 nothing here may reimplement any part of it. A second publisher is a second
@@ -16,8 +22,9 @@ fails rather than improvising a way past the failure.
 Steps 1 to 4 run without asking. Step 5 is the only gate. Do not add gates the
 user did not ask for, and do not skip the one that is here.
 
-If the user named a version in the invocation (`/release 1.4.0`), that is the
-version. Otherwise propose one in step 3.
+If the user named a version in the invocation (`$release 1.4.0`, `/release
+1.4.0`, or equivalent prose), that is the version. Otherwise propose one in
+step 3.
 
 ## 1. Orient
 
@@ -47,7 +54,7 @@ is for rather than which file moved ("Wait for the microphone to go live
 before saying so", not "Update Recorder.swift"). No conventional-commit
 prefixes, no `Co-Authored-By`, no generated-with trailer, no em dashes.
 
-Then `git push`. The tree has to be clean before step 6: `release.sh` refuses
+Then run `git push`. The tree has to be clean before step 6: `release.sh` refuses
 to publish a dirty tree, because the tag would otherwise point at something
 nobody can rebuild.
 
@@ -107,7 +114,8 @@ echo 1.4.0 > VERSION
 Commit both together, and push:
 
 ```sh
-git commit -am "Speak 1.4.0" && git push
+git commit -am "Speak 1.4.0"
+git push
 ```
 
 Do **not** create the tag. `release.sh` tags and pushes the tag itself, and a
@@ -135,10 +143,11 @@ for separately in step 7.
 ./release.sh --publish
 ```
 
-**Run it in the background.** The build alone runs about ten minutes and
-Apple's notarization queue has taken over an hour, so a foreground call hits
-the ten minute tool timeout and looks like a hang. Report progress from the
-output rather than starting anything else against the same tree while it runs.
+**Run it through the harness's background process or persistent terminal
+session.** The build alone runs about ten minutes and Apple's notarization queue
+has taken over an hour, so a foreground call can hit a tool timeout and look
+like a hang. Poll that same process and report progress from its output rather
+than starting anything else against the same tree while it runs.
 
 Do not kill it during the notarization wait. If it dies there, the submission
 is usually still accepted server-side and the recovery is `./release.sh
@@ -165,7 +174,7 @@ The workflow is the route. It needs `HOMEBREW_TAP_TOKEN`, which is set on
 fine-grained token with an expiry rather than a permanent fact, though.
 
 ```sh
-gh secret list | grep HOMEBREW_TAP_TOKEN
+gh secret list
 gh workflow run homebrew-tap.yml -f tag=v1.4.0
 ```
 
@@ -224,7 +233,9 @@ Check the status line is empty either way. A dirty tapped clone is a broken
 `brew update` for the user, and nothing else reports it.
 
 Commit as `speak 1.4.0`, matching the tap's history. Ask before pushing the
-tap: it is a public repository, and a different one from the release.
+tap: it is a public repository, and a different one from the release. An
+explicit request to publish Speak does not by itself authorize that separate
+push or merging the workflow's pull request.
 
 ## 8. Check the feed, then report
 

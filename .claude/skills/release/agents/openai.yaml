@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Speak"
+  short_description: "Publish a signed, notarized Speak release"
+  default_prompt: "Use $release to prepare and publish the next Speak version."

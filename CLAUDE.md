@@ -598,9 +598,10 @@ Signing uses the Hardened Runtime, which notarization requires. That is why
 the runtime blocks the microphone.
 
 `release.sh` is the only thing that publishes, and CI calls the same script, so
-a local release and a CI release cannot diverge. `/release`
-(`.claude/skills/release/SKILL.md`) drives the steps around it and reimplements
-none of them, for the same reason.
+a local release and a CI release cannot diverge. The release skill
+(`.agents/skills/release/SKILL.md`, also available through the
+Claude-compatible path) drives the steps around it and reimplements none of
+them, for the same reason.
 
 ### CHANGELOG.md is the only place release notes are written
 

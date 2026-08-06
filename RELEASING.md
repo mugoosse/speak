@@ -9,10 +9,11 @@ have to be done once.
 Releases are cut locally, from a machine holding the signing certificate, the
 notarytool profile and the Sparkle key.
 
-`/release` is the shortcut, and it does all of the below: commits and pushes
-what is outstanding, bumps `VERSION`, writes the changelog entry, asks once,
-then publishes and dispatches the cask. It lives in
-`.claude/skills/release/SKILL.md`. By hand:
+`$release`, `/release`, or a natural-language release request runs the skill,
+which does all of the below: commits and pushes what is outstanding, bumps
+`VERSION`, writes the changelog entry, asks once, then publishes and dispatches
+the cask. The open agent skill lives at `.agents/skills/release/SKILL.md`, with
+the Claude-compatible path pointing to the same files. By hand:
 
 ```sh
 $EDITOR CHANGELOG.md                   # a '## 1.0.3 (2026-08-12)' section on top
