@@ -90,6 +90,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ n: Notification) {
         installEditMenu()
+        indicator.onCancel = { [weak self] in self?.cancelDictation() }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let menu = NSMenu()
@@ -558,11 +559,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // yet, and a silent beep explains nothing.
         switch status {
         case .ready:
-            // Before the microphone, because it is upstream of it. While
-            // secure input is on the event tap receives nothing, so the
-            // shortcut cannot start a dictation and cannot retry a failed
-            // microphone either. Saying "press it to try again" underneath a
-            // key that is being swallowed is worse than saying nothing.
+            // Before the microphone, because it is upstream of it. Secure
+            // input can remove all ordinary key events while still allowing a
+            // modifier-only chord through, so do not promise that any keyboard
+            // control will work while it is on.
             if SecureInput.isOn {
                 let who = SecureInput.holder()
                 let item = NSMenuItem(
@@ -570,13 +570,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     action: nil, keyEquivalent: "")
                 item.image = symbol("exclamationmark.triangle")
                 menu.addItem(item)
-                // Names the shortcut rather than "the shortcut", because the
-                // person reading this pressed a specific chord and watched
-                // nothing happen. It also says "cannot reach Speak" rather
-                // than "is disabled": nothing about Speak has changed, and
-                // no other app's shortcuts are getting through either.
                 let hint = NSMenuItem(
-                    title: "\(Shortcut.description) cannot reach Speak until it is off",
+                    title: "Keyboard input may not reach Speak until it is off",
                     action: nil, keyEquivalent: "")
                 hint.image = symbol("keyboard")
                 menu.addItem(hint)

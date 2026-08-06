@@ -5,11 +5,10 @@ import IOKit
 /// Whether some app has secure input turned on, and which one.
 ///
 /// Secure input exists to keep keyloggers away from the keyboard, and at the
-/// layer it works on, Speak's chord detection is a keylogger: while it is on,
-/// the event tap in `installHotkey` is handed nothing at all. Not a truncated
-/// chord, not a modifier without its key. Nothing. So the shortcut does not
-/// fail, it never fires, and the icon, the menu and the tooltip all carry on
-/// saying it works.
+/// layer it works on, Speak's chord detection is a keylogger. While it is on,
+/// the event tap in `installHotkey` is not handed ordinary key events. Modifier
+/// changes can still arrive on some paths, so a modifier-only chord may start a
+/// recording while Escape never reaches the tap to cancel it.
 ///
 /// Terminal's Secure Keyboard Entry is the deliberate case, and it stays on
 /// until someone unticks it. The accidental case is an app that turns it on
@@ -19,8 +18,8 @@ import IOKit
 ///
 /// Every other way a dictation can fail already says so in the menu: the
 /// microphone gets a row and a retry hint, a model that will not load gets a
-/// row and a Try again. The one failure that stops a dictation from ever
-/// starting had nothing.
+/// row and a Try again. This is the only failure that can remove some or all
+/// keyboard control without telling Speak that anything changed.
 enum SecureInput {
     /// Cheap enough for `menuWillOpen`, which is the only thing that asks.
     ///

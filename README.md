@@ -459,14 +459,18 @@ Open the Speak menu. If another app has turned on **secure input**, the menu
 says so and names it.
 
 Secure input is the macOS feature that stops keyloggers reading the keyboard,
-and while it is on, no app can see a keyboard shortcut, Speak included. Some
-apps turn it on for a password field and turn it off again, which is fine and
-lasts a second. Terminal has it as a setting, **Terminal → Secure Keyboard
-Entry**, which stays on until you untick it, and an app that turns it on and
-then forgets to release it will hold it until you quit that app.
+and while it is on, ordinary key events cannot reach Speak. A modifier-only
+shortcut can sometimes still start a recording, but character-key shortcuts
+may not fire. Some apps turn secure input on for a password field and turn it
+off again, which is fine and lasts a second. Terminal has it as a setting,
+**Terminal → Secure Keyboard Entry**, which stays on until you untick it,
+and an app that turns it on and then forgets to release it will hold it until
+you quit that app.
 
-Nothing in Speak can work around it, and nothing should: an app that could see
-your keystrokes through secure input would be the thing it exists to prevent.
+Escape cancellation works again once the responsible app releases secure
+input. Speak does not try to bypass the protection to read it. While recording,
+the on-screen indicator also has a **Cancel** button that works even when secure
+input hides the keyboard.
 
 ### The fn key does nothing, or opens the emoji picker
 

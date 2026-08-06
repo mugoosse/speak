@@ -8,7 +8,7 @@ import AppKit
 /// whether the mic is live is the single most costly mistake a user of this app
 /// can make, so the state gets said out loud on screen.
 @MainActor
-final class RecordingIndicator {
+final class RecordingIndicator: NSObject {
     enum State {
         case recording
         case transcribing
@@ -33,10 +33,13 @@ final class RecordingIndicator {
     private var dot: NSView?
     private var label: NSTextField!
     private var timeLabel: NSTextField!
+    private var cancelButton: NSButton!
     private var started = Date()
     private var tick: Timer?
     private var pulse: Timer?
     private var bright = true
+
+    var onCancel: (() -> Void)?
 
     func show(_ state: State) {
         let p = panel ?? makePanel()
@@ -48,6 +51,8 @@ final class RecordingIndicator {
             started = Date()
             timeLabel.stringValue = "0:00"
             timeLabel.isHidden = false
+            cancelButton.isHidden = false
+            p.ignoresMouseEvents = false
             dot?.layer?.backgroundColor = NSColor.systemRed.cgColor
             startTimers()
         // Both are the same colour on purpose. The dot answers one question,
@@ -56,6 +61,8 @@ final class RecordingIndicator {
         // to anyone glancing at it.
         case .transcribing, .polishing:
             timeLabel.isHidden = true
+            cancelButton.isHidden = true
+            p.ignoresMouseEvents = true
             dot?.layer?.backgroundColor = NSColor.systemOrange.cgColor
             stopTimers()
         }
@@ -69,6 +76,7 @@ final class RecordingIndicator {
 
     func hide() {
         stopTimers()
+        panel?.ignoresMouseEvents = true
         panel?.orderOut(nil)
     }
 
@@ -76,7 +84,7 @@ final class RecordingIndicator {
 
     private func makePanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 190, height: 44),
+            contentRect: NSRect(x: 0, y: 0, width: 250, height: 44),
             // .nonactivatingPanel is the load-bearing flag: without it, showing
             // this steals focus and the keystrokes the user is about to type
             // go to the wrong place.
@@ -87,7 +95,9 @@ final class RecordingIndicator {
         p.backgroundColor = .clear
         p.isOpaque = false
         p.hasShadow = true
-        p.ignoresMouseEvents = true          // never in the way of a click
+        // Click-through except while recording, when the Cancel button is the
+        // only control macOS cannot hide behind another app's secure input.
+        p.ignoresMouseEvents = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
                                 .ignoresCycle]
 
@@ -119,9 +129,21 @@ final class RecordingIndicator {
         timeLabel.frame = NSRect(x: 120, y: 14, width: 52, height: 16)
         bg.addSubview(timeLabel)
 
+        cancelButton = NSButton(title: "Cancel", target: self,
+                                action: #selector(cancel(_:)))
+        cancelButton.bezelStyle = .inline
+        cancelButton.controlSize = .small
+        cancelButton.font = .systemFont(ofSize: 12, weight: .medium)
+        cancelButton.toolTip = "Cancel this dictation without changing the clipboard"
+        cancelButton.frame = NSRect(x: 180, y: 9, width: 58, height: 26)
+        cancelButton.isHidden = true
+        bg.addSubview(cancelButton)
+
         p.contentView = bg
         return p
     }
+
+    @objc private func cancel(_ sender: NSButton) { onCancel?() }
 
     /// Bottom centre of whichever screen has the mouse, above the Dock. Near
     /// where the eye already is when typing, and out of the way of content.
