@@ -8,6 +8,42 @@ publish when its version disagrees with `VERSION`.
 A section starts at a heading that is `##` followed by a version number, so
 headings inside an entry can be anything that is not one of those.
 
+## 1.5.0 (2026-08-07)
+
+### The recording indicator now shows what the microphone is hearing
+
+The pill used to blink a red dot on a timer. That said Speak was switched on
+and nothing more, and it looked exactly the same into a muted input, a headset
+that had gone back in its case, or a microphone pointed at the wrong edge of
+the laptop. Recording and hearing you are different claims, and only the second
+one goes wrong.
+
+It now draws the sound instead. The default is a waveform of the last two
+seconds, scrolling, which is the only version that still shows a gap after it
+has passed: if it missed the start of a sentence, that is visible a beat later,
+when you actually think to check. **Settings → General** offers a quieter orb
+instead, one dot that grows and brightens with your voice on a narrower pill,
+or turns the indicator off as before.
+
+The waveform takes the pill over while you talk, so the word "Listening" is
+gone from it. A waveform moving with your own voice says that more precisely
+than the word did.
+
+Neither style freezes once you let go. The waveform stops scrolling and a
+highlight sweeps across what it captured while the transcript is being made;
+the orb changes to a slow pulse. Both are deliberately different from how they
+look while the microphone is open, because by then it is closed.
+
+### Cancel is now a trash button
+
+The **Cancel** button added in 1.4.0 is a trash icon at the right-hand end of
+the pill. It does the same thing, stops the dictation without transcribing it
+or changing the clipboard, and it still works when another app is holding
+secure input and Escape cannot reach Speak. It is dim until you point at it.
+
+The word was worth about a third of the pill's width, and the waveform wanted
+it. Hover it, or read the tooltip, if the icon alone is not enough.
+
 ## 1.4.0 (2026-08-06)
 
 ### Cancel a recording even when Escape cannot reach Speak
