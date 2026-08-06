@@ -453,6 +453,21 @@ Remove it with the minus button and add it again. macOS keeps a stale entry
 after an app is replaced, and that stale entry is the single most common reason
 a working install stops responding.
 
+### The shortcut stopped working and nothing else changed
+
+Open the Speak menu. If another app has turned on **secure input**, the menu
+says so and names it.
+
+Secure input is the macOS feature that stops keyloggers reading the keyboard,
+and while it is on, no app can see a keyboard shortcut, Speak included. Some
+apps turn it on for a password field and turn it off again, which is fine and
+lasts a second. Terminal has it as a setting, **Terminal → Secure Keyboard
+Entry**, which stays on until you untick it, and an app that turns it on and
+then forgets to release it will hold it until you quit that app.
+
+Nothing in Speak can work around it, and nothing should: an app that could see
+your keystrokes through secure input would be the thing it exists to prevent.
+
 ### The fn key does nothing, or opens the emoji picker
 
 macOS may be reserving fn for the emoji picker. Set System Settings → Keyboard

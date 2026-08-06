@@ -558,12 +558,34 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // yet, and a silent beep explains nothing.
         switch status {
         case .ready:
+            // Before the microphone, because it is upstream of it. While
+            // secure input is on the event tap receives nothing, so the
+            // shortcut cannot start a dictation and cannot retry a failed
+            // microphone either. Saying "press it to try again" underneath a
+            // key that is being swallowed is worse than saying nothing.
+            if SecureInput.isOn {
+                let who = SecureInput.holder()
+                let item = NSMenuItem(
+                    title: "\(who ?? "Another app") has secure input on",
+                    action: nil, keyEquivalent: "")
+                item.image = symbol("exclamationmark.triangle")
+                menu.addItem(item)
+                // Names the shortcut rather than "the shortcut", because the
+                // person reading this pressed a specific chord and watched
+                // nothing happen. It also says "cannot reach Speak" rather
+                // than "is disabled": nothing about Speak has changed, and
+                // no other app's shortcuts are getting through either.
+                let hint = NSMenuItem(
+                    title: "\(Shortcut.description) cannot reach Speak until it is off",
+                    action: nil, keyEquivalent: "")
+                hint.image = symbol("keyboard")
+                menu.addItem(hint)
             // A microphone failure is not a model failure, so it does not
             // belong in `status`, but it does have to reach the menu. Without
             // this the icon showed a warning triangle while the menu carried on
             // saying the shortcut worked, and the only account of what went
             // wrong was a tooltip nobody thinks to hover.
-            if let micError {
+            } else if let micError {
                 let item = NSMenuItem(title: micError, action: nil, keyEquivalent: "")
                 item.image = symbol("exclamationmark.triangle")
                 menu.addItem(item)

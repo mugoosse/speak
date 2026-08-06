@@ -8,6 +8,34 @@ publish when its version disagrees with `VERSION`.
 A section starts at a heading that is `##` followed by a version number, so
 headings inside an entry can be anything that is not one of those.
 
+## 1.3.1 (2026-08-06)
+
+### Speak now says when something else is swallowing your keyboard
+
+If the shortcut suddenly does nothing, open the Speak menu. When another app
+has turned on secure input, the menu now names it and says the chord cannot
+reach Speak until it is off.
+
+Secure input is the macOS feature that keeps keyloggers away from the keyboard,
+and at the level it works on, a shortcut listener is a keylogger. Measured with
+a test tap and a synthesized keystroke: seen once with secure input off, and not
+at all with it on. So the shortcut was not failing, it was never arriving, and
+Speak had no way to know it had been pressed. The icon stayed ready, the menu
+went on saying the chord toggles dictation, and nothing happened.
+
+Terminal has it as a setting, Secure Keyboard Entry, which stays on until you
+untick it. More often it is an app that turns it on for a password field and
+does not turn it off again, and then holds it until you quit that app.
+
+Speak cannot work around this and should not: an app that could read your
+keystrokes through secure input would be the thing the feature exists to stop.
+Naming it is the whole fix, and it is enough, because the hard part was never
+turning it off, it was knowing that was what happened.
+
+The menu is checked only when you open it. Secure input goes on for a moment
+every time anybody types a password, so an app that watched it continuously
+would spend most of its time warning you about nothing.
+
 ## 1.3.0 (2026-08-05)
 
 An appearance release. Dictation, the engines and the dictionary are untouched,
