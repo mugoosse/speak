@@ -8,6 +8,23 @@ publish when its version disagrees with `VERSION`.
 A section starts at a heading that is `##` followed by a version number, so
 headings inside an entry can be anything that is not one of those.
 
+## 1.4.0 (2026-08-06)
+
+### Cancel a recording even when Escape cannot reach Speak
+
+The recording indicator now has a **Cancel** button. It stops the current
+dictation without transcribing it or changing the clipboard.
+
+This matters when another app has turned on secure input. macOS can still let a
+modifier-only shortcut start recording while withholding ordinary keys such as
+Escape from Speak. Escape works again after the responsible app releases secure
+input. Until then, the on-screen Cancel button uses the mouse, which secure
+input does not block.
+
+Speak still does not try to bypass macOS keyboard protection. The menu names the
+app holding secure input and now says that keyboard input may not reach Speak,
+rather than promising that every part of the shortcut is unavailable.
+
 ## 1.3.1 (2026-08-06)
 
 ### Speak now says when something else is swallowing your keyboard
