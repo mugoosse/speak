@@ -279,6 +279,8 @@ final class GeneralPane: Pane {
     private var loginError: String?
     private var startSoundPopup: NSPopUpButton!
     private var doneSoundPopup: NSPopUpButton!
+    private var meterPopup: NSPopUpButton!
+    private var meterBlurb: NSTextField!
 
     /// Devices come and go, so rebuild the list whenever the pane is shown.
     override func viewWillAppear() {
@@ -411,7 +413,20 @@ final class GeneralPane: Pane {
         let hud = NSButton(checkboxWithTitle: "Show an on-screen indicator while recording",
                            target: self, action: #selector(toggleIndicator))
         hud.state = Settings.showIndicator ? .on : .off
-        stack.addArrangedSubview(hud)
+
+        meterPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        meterPopup.target = self
+        meterPopup.action = #selector(pickMeter)
+        for style in MeterStyle.selectable { meterPopup.addItem(withTitle: style.title) }
+        meterPopup.selectItem(withTitle: Settings.meterStyle.title)
+        meterPopup.isEnabled = Settings.showIndicator
+        // On the checkbox's own row rather than under it. A row of its own
+        // costs about 30 points, and this pane was already ending with the
+        // microphone picker level with the bottom of the window.
+        stack.addArrangedSubview(row([hud, meterPopup]))
+
+        meterBlurb = caption(Settings.meterStyle.blurb)
+        stack.addArrangedSubview(meterBlurb)
 
         stack.addArrangedSubview(separator())
         stack.addArrangedSubview(heading("Microphone"))
@@ -551,6 +566,17 @@ final class GeneralPane: Pane {
 
     @objc private func toggleIndicator(_ sender: NSButton) {
         Settings.showIndicator = sender.state == .on
+        meterPopup.isEnabled = Settings.showIndicator
+    }
+
+    /// The caption is replaced in place rather than the pane rebuilt: this
+    /// control sits in the middle of a scrolling pane, and rebuilding would
+    /// throw the scroll position away while somebody is reading the sentence
+    /// that just changed.
+    @objc private func pickMeter(_ sender: NSPopUpButton) {
+        let style = MeterStyle.selectable[sender.indexOfSelectedItem]
+        Settings.meterStyle = style
+        meterBlurb.stringValue = style.blurb
     }
 
     @objc private func togglePaste(_ sender: NSButton) {

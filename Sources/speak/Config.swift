@@ -369,6 +369,7 @@ enum Settings {
     private static let startAtLoginDefaultAppliedKey = "startAtLoginDefaultApplied"
     private static let soundsKey = "sounds"
     private static let indicatorKey = "showIndicator"
+    private static let meterKey = "meterStyle"
     private static let onboardingStepKey = "onboardingStep"
     private static let startSoundKey = "startSound"
     private static let doneSoundKey = "doneSound"
@@ -384,6 +385,18 @@ enum Settings {
     static var showIndicator: Bool {
         get { UserDefaults.standard.object(forKey: indicatorKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: indicatorKey) }
+    }
+
+    /// What the recording pill animates. Taste, not correctness: both offered
+    /// styles are driven by the microphone and both answer "is it hearing me".
+    /// One is quieter and narrower than the other, and which of those matters
+    /// depends on where somebody keeps their windows.
+    static var meterStyle: MeterStyle {
+        get {
+            MeterStyle(rawValue: UserDefaults.standard.string(forKey: meterKey) ?? "")
+                ?? .waveform
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: meterKey) }
     }
 
     /// Which system sound each cue uses. Taste in notification sounds is

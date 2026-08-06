@@ -20,6 +20,16 @@ final class Recorder {
     var onFirstBuffer: (@Sendable () -> Void)?
     private var sawFirstBuffer = false
 
+    /// Fired repeatedly while recording with how loud the microphone is right
+    /// now, 0 for a silent room and 1 for somebody shouting into it.
+    ///
+    /// This exists so the recording pill can show that Speak is hearing *you*
+    /// rather than only that it is switched on. Those are different claims, and
+    /// the second one is the one that goes wrong: a muted input, a headset that
+    /// went back to the case, a mic pointed at the wrong side of the laptop all
+    /// look identical to a blinking dot.
+    var onLevel: (@Sendable (Float) -> Void)?
+
     private let target = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: SAMPLE_RATE,
@@ -66,6 +76,7 @@ final class Recorder {
             self.sawFirstBuffer = true
             self.lock.unlock()
             if first { self.onFirstBuffer?() }
+            self.report(chunk)
         }
 
         engine.prepare()
@@ -88,6 +99,45 @@ final class Recorder {
             throw error
         }
         isRecording = true
+    }
+
+    /// Splits one captured buffer into short windows and reports each one's
+    /// loudness.
+    ///
+    /// Per window rather than per buffer: a buffer is about 85 ms, which is
+    /// twelve updates a second, and a meter stepping twelve times a second
+    /// looks like it is struggling rather than listening. 32 ms windows give
+    /// about thirty, which is enough for the animation to be interpolating
+    /// between real measurements instead of inventing motion between stale
+    /// ones.
+    private func report(_ chunk: [Float]) {
+        guard let onLevel else { return }
+        let window = Int(SAMPLE_RATE / 31)      // ~32 ms
+        var i = 0
+        while i < chunk.count {
+            let end = min(i + window, chunk.count)
+            onLevel(Recorder.loudness(chunk[i..<end]))
+            i = end
+        }
+    }
+
+    /// RMS mapped onto 0...1 through decibels rather than linearly.
+    ///
+    /// Linear amplitude is the wrong scale for a meter because hearing is not
+    /// linear: ordinary speech through a laptop microphone peaks around 0.05
+    /// of full scale, so a linear meter spends its whole life in the bottom
+    /// twentieth and reads as "nothing is happening" while somebody talks.
+    /// The window below is measured on this app's own capture path: -55 dBFS
+    /// is a quiet room, -14 is shouting, and normal dictation covers most of
+    /// what is between them.
+    private static func loudness(_ window: ArraySlice<Float>) -> Float {
+        guard !window.isEmpty else { return 0 }
+        var sum: Float = 0
+        for s in window { sum += s * s }
+        let rms = (sum / Float(window.count)).squareRoot()
+        guard rms > 0 else { return 0 }
+        let db = 20 * log10f(rms)
+        return min(1, max(0, (db + 55) / 41))
     }
 
     /// Points the engine's input at the chosen device.

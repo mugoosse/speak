@@ -60,7 +60,10 @@ that one dies looking for Sparkle, and it reads a different defaults domain.
 | `AppDelegate.swift` | menu bar, event tap, dictation toggle, model state |
 | `MenuBarIcon.swift` | the status item artwork: the mascot template plus the system symbols |
 | `Config.swift` | `ModelChoice`, `Settings`, `Shortcut`, `Modifier`, `KeyName`, `ModelStatus` |
-| `Recorder.swift` | `AVAudioEngine` capture to 16 kHz mono Float32 |
+| `Recorder.swift` | `AVAudioEngine` capture to 16 kHz mono Float32, and the loudness the pill animates from |
+| `RecordingIndicator.swift` | the floating pill: layout per meter style, and the trash button |
+| `Meters.swift` | `MeterStyle` and the three meter views |
+| `MeterDemo.swift` | `--hud-demo`, which stacks every style on one microphone |
 | `Transcriber.swift` | routes to Parakeet (MLX) or Apple Intelligence |
 | `AppleEngine.swift` | `SpeechAnalyzer` / `SpeechTranscriber`, macOS 26+ |
 | `Polisher.swift` | `PolishEngine`, both prompts, chunking, timeout, fallbacks |
@@ -470,6 +473,77 @@ it only for people whose Macs can polish, which is the smaller half.
 It has no setting on purpose. A full stop on the end of a one-word answer is
 wrong in a search field, a form, a file name and a cell, and in prose it is a
 character the user can type, so there is nothing to ask about.
+
+### The recording pill has to be driven by the microphone, not by a timer
+
+The dot that blinked on a 0.6 s timer answered "is Speak switched on" and
+nothing else. It looks identical into a muted input, a headset that went back in
+its case, and a microphone pointed at the wrong edge of the laptop, which are
+the failures that actually happen. Every shipping dictation app that is any good
+shows the signal instead, so `Recorder.onLevel` feeds `MeterStyle.waveform` (the
+default) or `.orb`.
+
+Four things about it are measured rather than chosen:
+
+- **The loudness is mapped through decibels, not linearly.** Speech through a
+  laptop microphone peaks around 0.05 of full scale, so a linear meter lives in
+  the bottom twentieth of its range and reads as nothing happening while
+  somebody talks. `Recorder.loudness` clamps -55 dBFS to -14 dBFS onto 0...1.
+- **Levels are reported per 32 ms window, not per buffer.** A 4096-frame buffer
+  is about 85 ms, and twelve updates a second looks like a meter struggling
+  rather than listening.
+- **Fast attack, slow release** (`Envelope`). Speech has gaps inside every word,
+  and following them down as fast as up strobes instead of tracking.
+- **The level callback goes to the main actor through
+  `DispatchQueue.main.async`, not `Task {}`.** The waveform is a queue, so a
+  reordered sample is a bar drawn in the wrong place. This is the same ordering
+  trap as `installHotkey`.
+
+`--hud-demo` stacks one pill per style on the same microphone, because "is this
+better" is a question about a moving thing and cannot be answered from a
+screenshot or from memory of the build before last. That is also why `.pulse` is
+still in the tree and deliberately not improved: it is the thing being compared
+against. Launch it with
+
+```sh
+open -n -a /Applications/Speak.app --args --hud-demo   # add --fake for no mic
+```
+
+`-n` is required, or a running copy swallows the launch and nothing appears.
+Going through the bundle rather than the binary is required too: the microphone
+grant belongs to the bundle, and running `Contents/MacOS/Speak` from a shell
+asks the terminal for its own instead. `--fake` drives it from a synthetic
+speech envelope and cycles the states, which is the only way to watch the
+handover from recording to transcribing: real transcription is over before you
+have looked down.
+
+### One column edge decides the pill's whole layout
+
+A spanning meter (the waveform) hides the word "Listening" while recording, so
+the timer, the trash button and the status text all share one trailing column,
+and both the timer and the status text start at its **left** edge. That edge is
+what the waveform stops against, which is what keeps the strip the same distance
+from "0:07" as from "Polishing 1/2…" without anything resizing.
+
+Two ways of doing it were tried and are wrong:
+
+- **Shrinking the meter to make room for "Transcribing…".** A width change on a
+  state the user is already watching reads as a glitch rather than as progress.
+- **Right-aligning the status text in that column.** The first letter then moves
+  with the string's length, so "Polishing 1/2…" and "Polishing 10/12…" stop the
+  waveform in two different places.
+
+`labelWidth` is measured from the font rather than guessed, because the text is
+pinned at the left of the column and overflow clips rather than spilling into a
+margin. It would clip on a machine slow enough to reach "Polishing 10/12…",
+which is not this one.
+
+`MeterView` has three states and the middle one is the point. `working()` is the
+microphone closed with the transcriber still busy: it has to keep moving,
+because a frozen pill reads as a hung app, but nothing it does may look like it
+is still hearing something. The waveform stops scrolling and a highlight sweeps
+across what it already captured; the orb switches from a floor under a live
+level to a slow pulse that is the whole movement.
 
 ### Settings panes scroll, and a clip view is not flipped
 

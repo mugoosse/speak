@@ -147,10 +147,18 @@ top of the menu.
 
 Recording is not something to squint at the menu bar for, and it does not have
 to be: a small floating pill says the same thing on screen, where you are
-actually looking. **Listening** with a red dot and a running timer, then **Transcribing…**,
-then **Polishing…** if that is switched on. A dictation long enough to be split
-into several requests counts them off, **Polishing 2/4…**, so a long wait is
-visibly progress rather than a hang. Turn the pill off in Settings → General.
+actually looking. While the microphone is open it shows the last two seconds of
+what it heard, scrolling, next to a running timer. Then **Transcribing…**, then
+**Polishing…** if that is switched on. A dictation long enough to be split into
+several requests counts them off, **Polishing 2/4…**, so a long wait is visibly
+progress rather than a hang.
+
+The waveform is there because "recording" and "hearing you" are different
+claims, and it is the second one that goes wrong: a muted input, a headset back
+in its case or a microphone pointed at the wrong edge of the laptop all look
+identical to a working one if the indicator is a blinking light. Settings →
+General offers a quieter **Orb** instead, one dot that grows and brightens with
+your voice, or turns the pill off entirely.
 
 ## Engines
 
@@ -469,8 +477,8 @@ you quit that app.
 
 Escape cancellation works again once the responsible app releases secure
 input. Speak does not try to bypass the protection to read it. While recording,
-the on-screen indicator also has a **Cancel** button that works even when secure
-input hides the keyboard.
+the on-screen indicator also has a trash button at its right-hand end that
+cancels the dictation, and it works even when secure input hides the keyboard.
 
 ### The fn key does nothing, or opens the emoji picker
 

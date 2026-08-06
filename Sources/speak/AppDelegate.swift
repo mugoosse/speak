@@ -91,6 +91,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
         installEditMenu()
         indicator.onCancel = { [weak self] in self?.cancelDictation() }
+        // Off the audio thread, and in order: the waveform style is a queue, so
+        // a reordered sample is a bar drawn in the wrong place.
+        recorder.onLevel = { [weak self] level in
+            DispatchQueue.main.async { self?.indicator.level(level) }
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let menu = NSMenu()

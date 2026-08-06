@@ -65,6 +65,20 @@ if CommandLine.arguments.count >= 2, CommandLine.arguments[1] == "--polish" {
     exit(0)
 }
 
+// `speak --hud-demo` shows one recording pill per meter style, stacked and all
+// driven by the same microphone, so the styles can be compared rather than
+// remembered. `--fake` swaps the microphone for a synthetic speech envelope.
+// See MeterDemo for how to launch it.
+if CommandLine.arguments.contains("--hud-demo") {
+    let app = NSApplication.shared
+    let demo = MeterDemo(fake: CommandLine.arguments.contains("--fake"))
+    app.delegate = demo
+    app.setActivationPolicy(.accessory)
+    objc_setAssociatedObject(app, "speak.demo", demo, .OBJC_ASSOCIATION_RETAIN)
+    app.run()
+    exit(0)
+}
+
 // Top-level code in main.swift is already main-actor isolated, so the App can
 // be constructed directly. (Wrapping this in MainActor.assumeIsolated is an
 // error under Swift 6: assumeIsolated is unavailable from an async context,
