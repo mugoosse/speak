@@ -8,6 +8,51 @@ publish when its version disagrees with `VERSION`.
 A section starts at a heading that is `##` followed by a version number, so
 headings inside an entry can be anything that is not one of those.
 
+## 1.5.1 (2026-08-08)
+
+### Dictating no longer puts a Bluetooth headset into a call
+
+With music playing on Bluetooth headphones and a different microphone chosen,
+the built-in one say, Speak took the headset anyway. It dropped from 44100 Hz
+to 16000 Hz, which is the hands-free profile: the music went mono and the
+headset behaved as though a call had started. The recording indicator was
+drawing that microphone too, so the waveform showed the headset's own input
+rather than your voice.
+
+The cause was the order in which the microphone was opened. Speak asked
+`AVAudioEngine` for its input before saying which device it wanted, and
+`AVAudioEngine` binds to the system default at that moment. The choice made in
+Settings arrived a fraction of a second too late to matter. Capture now names
+the device before the audio unit is initialised, so nothing except the
+microphone you picked is ever opened. Measured on the same Mac and headset
+afterwards: the headphones held 44100 Hz throughout and their microphone never
+ran.
+
+Speak also releases the microphone the moment a dictation ends, rather than
+holding it until you quit. A headset no longer sits in hands-free mode for the
+rest of the day after one dictation, and changing the microphone in Settings
+now takes effect on the next recording instead of the next launch.
+
+If the microphone you choose *is* a Bluetooth headset, it still switches to
+hands-free mode while you dictate and the audio is still narrowband. That is
+what recording from that microphone costs, and no amount of reordering avoids
+it.
+
+### The first dictation after launch could record nothing
+
+Speak asked Core Audio for the microphone it wanted, the request was accepted
+and reported as successful, and it did not take effect until the recording
+after it. The first dictation of each session therefore ran on the wrong
+device. Measured on the machine this was found on, it captured nothing at all
+in one and a half seconds: no transcript, no error, and no sound or indicator,
+because both of those wait for real audio rather than for the keypress. The
+second dictation and every one after it worked, which is how this went
+unnoticed.
+
+This only happened when the microphone chosen in Settings was not also the
+system default input. If you have never changed either, you will not have seen
+it.
+
 ## 1.5.0 (2026-08-07)
 
 ### The recording indicator now shows what the microphone is hearing
