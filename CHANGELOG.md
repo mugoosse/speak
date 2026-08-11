@@ -8,7 +8,7 @@ publish when its version disagrees with `VERSION`.
 A section starts at a heading that is `##` followed by a version number, so
 headings inside an entry can be anything that is not one of those.
 
-## 1.6.0 (unreleased)
+## 1.6.0 (2026-08-11)
 
 ### Speak has moved into Listen
 
