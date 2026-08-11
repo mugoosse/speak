@@ -8,6 +8,41 @@ publish when its version disagrees with `VERSION`.
 A section starts at a heading that is `##` followed by a version number, so
 headings inside an entry can be anything that is not one of those.
 
+## 1.6.0 (unreleased)
+
+### Speak has moved into Listen
+
+This is Speak's last release. Dictation now ships inside
+[Listen](https://mugoosse.github.io/listen/), which records and transcribes
+meetings and, from its 0.12.0, does everything Speak does: the same push-to-talk
+shortcut, the same floating pill, the same custom dictionary, the same polishing
+and false-start passes, all still entirely on your Mac.
+
+Listen was built from Speak as a template, so the two already shared a
+microphone path, a speech model, a Hugging Face cache, a settings framework and
+a release pipeline. What dictation needed that meeting recording did not was a
+global shortcut and a way to type. That is the whole difference, and it was not
+worth two apps, two menu bar icons, or two copies of the same 2.5 GB of weights.
+
+**What carries over on its own:** the Parakeet weights. Both apps have always
+resolved the same Hugging Face cache, so there is nothing to download again.
+
+**What does not:** your settings. The shortcut, the sounds, the polishing
+preferences and the dictation history all stay here. Set the shortcut again in
+Listen's Settings, Dictation. Your dictionary can be brought across in one
+press from Listen's Settings, Dictionary, which reads this app's
+`dictionary.json` directly.
+
+**Nothing breaks today.** This copy of Speak keeps working exactly as it does
+now. It will not be updated again, the Homebrew cask is deprecated from this
+release, and the repository will be archived after a grace period. Installed
+copies and the download links stay where they are.
+
+### Changes
+
+- The menu bar and the About pane say where dictation went, with a link.
+- Nothing else. This release exists to carry the notice.
+
 ## 1.5.1 (2026-08-08)
 
 ### Dictating no longer puts a Bluetooth headset into a call

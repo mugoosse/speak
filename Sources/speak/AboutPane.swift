@@ -29,6 +29,26 @@ final class AboutPane: Pane {
         stack.addArrangedSubview(header())
         stack.addArrangedSubview(separator())
 
+        // Said here as well as in the menu and the release notes, because these
+        // are three different people: one who opened the menu, one who read an
+        // update pane, and one who came looking for the version number.
+        stack.addArrangedSubview(heading("Speak has moved into Listen"))
+        let moved = NSTextField(wrappingLabelWithString:
+            "Dictation is now a feature of Listen, which also records and transcribes "
+            + "meetings. The speech model carries over on its own, because both apps "
+            + "always used the same download. The shortcut and the sounds start at "
+            + "their defaults, and your dictionary can be imported in one press from "
+            + "Listen's Settings, Dictionary.\n\n"
+            + "This is Speak's last release. It keeps working; it will not be updated "
+            + "again.")
+        moved.font = .systemFont(ofSize: 12)
+        moved.preferredMaxLayoutWidth = 470
+        stack.addArrangedSubview(moved)
+        stack.addArrangedSubview(row([
+            NSButton(title: "Get Listen", target: self, action: #selector(openListen)),
+        ]))
+        stack.addArrangedSubview(separator())
+
         stack.addArrangedSubview(heading("Updates"))
 
         checkButton = NSButton(title: "Check Now",
@@ -197,6 +217,11 @@ final class AboutPane: Pane {
         } else {
             lastChecked.stringValue = "Not checked yet."
         }
+    }
+
+    @objc private func openListen() {
+        guard let url = URL(string: "https://mugoosse.github.io/listen/") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func checkForUpdates() {

@@ -1,3 +1,14 @@
+> [!IMPORTANT]
+> **Speak has moved into Listen.**
+> Dictation now ships inside [Listen](https://github.com/mugoosse/listen), which
+> also records and transcribes meetings. Same shortcut, same local speech model,
+> same dictionary, nothing uploaded. The Parakeet weights carry over on their
+> own; the shortcut and sounds start at their defaults, and your dictionary can
+> be imported in one press from Listen's Settings, Dictionary.
+>
+> Speak 1.6.0 is the last release. This copy keeps working and is no longer
+> updated. See the [changelog](CHANGELOG.md) for what carries over.
+
 <p align="center">
   <img width="110" alt="Speak red monkey app icon" src="Assets/icon.png" />
 </p>

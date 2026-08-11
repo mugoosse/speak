@@ -558,6 +558,24 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         name.isEnabled = false
         name.image = MenuBarIcon.ready.menuImage
         menu.addItem(name)
+
+        // The farewell, at the top where it cannot be missed.
+        //
+        // Speak's dictation now ships inside Listen, and this is the final
+        // release. Sparkle's release notes reach anyone who updates, but an app
+        // that is only ever a menu is an app somebody may go months without
+        // updating, so the menu says it too. First row, because the whole point
+        // is that it is read before the thing it is announcing stops being
+        // maintained.
+        let moved = NSMenuItem(title: "Speak has moved into Listen",
+                               action: #selector(openListen), keyEquivalent: "")
+        moved.target = self
+        moved.image = symbol("arrow.right.circle")
+        menu.addItem(moved)
+        let movedHint = NSMenuItem(title: "This is the last Speak release",
+                                   action: nil, keyEquivalent: "")
+        movedHint.isEnabled = false
+        menu.addItem(movedHint)
         menu.addItem(.separator())
 
         // Until the model is usable, say so first: the shortcut does nothing
@@ -698,6 +716,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.image = image
         statusItem.button?.toolTip = "Speak: \(tip)"
         log(tip)
+    }
+
+    /// The one link this release exists to carry.
+    @objc private func openListen() {
+        guard let url = URL(string: "https://mugoosse.github.io/listen/") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func openSettings() { settings.show() }
