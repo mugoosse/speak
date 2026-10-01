@@ -3,7 +3,7 @@
 #
 # There is no test target (MLX needs the Metal toolchain, so `swift test` cannot
 # run), and the polish model is not bit-exact anyway. This is the substitute:
-# every claim in the "polisher" sections of CLAUDE.md, expressed as something
+# every claim in docs/polisher.md, expressed as something
 # that can fail.
 #
 #     ./verify_polish.sh
@@ -68,7 +68,7 @@ check "cut: make sure"  '!scheduled !Tuesday' "we need to make sure that the"
 check "cut: probably"   '!going !need_to'    "and then we should probably"
 
 echo
-echo "KNOWN LIMITS  expected to come back unrepaired, see CLAUDE.md"
+echo "KNOWN LIMITS  expected to come back unrepaired, see docs/polisher.md"
 check "reused word"     'action_items'  "what are any actions action items for me"
 check "reused word 2"   'config'        "can you update the config the config file before the demo"
 

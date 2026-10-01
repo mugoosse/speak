@@ -101,6 +101,8 @@ updater would have fetched a 404 into the pane. With `--embed-release-notes` it
 becomes `<description sparkle:format="markdown">` inside the feed, and there is
 no second file to keep published.
 
+The notes file has to be named after the archive (`Speak-x.y.z.md`) and sit beside it in the archives directory, and it is written after `release.sh` wipes `dist/`, or the wipe takes it.
+
 Every feed up to and including 1.3.0 carried no description at all, so the only
 thing an updater was given to decide on was a version number.
 

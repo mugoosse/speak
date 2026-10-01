@@ -731,8 +731,7 @@ Pull requests welcome. There is no test target, so verification is manual and
 has to be stated in the PR: `./build.sh`, then `--transcribe` on a real file,
 then one dictation through the shortcut.
 
-`CLAUDE.md` documents the traps in this codebase, all of which were found the
-hard way. Read the one nearest your change before you make it.
+[AGENTS.md](AGENTS.md) and the files it points to under `docs/` document the traps in this codebase, all of which were found the hard way. Read the one nearest your change before you make it.
 
 - [RELEASING.md](RELEASING.md), how a release is cut
 - [SECURITY.md](SECURITY.md), what Speak can reach and how to report a problem

@@ -180,7 +180,7 @@ fi
 echo "version:     $VERSION (build $BUILD)"
 codesign -dv "$APP" 2>&1 | grep -E "Authority=" | head -1 || true
 # The leading "# " that older codesign printed is gone in current releases, so
-# match both. This line is how CLAUDE.md tells you to check the requirement is
+# match both. This line is how docs/signing.md tells you to check the requirement is
 # identity-based rather than a cdhash, and it silently printed nothing.
 echo "requirement: $(codesign -d -r- "$APP" 2>&1 \
     | sed -n 's/^#* *designated => //p')"

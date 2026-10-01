@@ -332,7 +332,7 @@ cp "$DMG" "$LATEST_DMG"
 # zip needs no mounting step.
 
 # Both trees, and the xcodebuild one first, because that is the one build.sh
-# fills. A machine that has only ever done what CLAUDE.md says has no
+# fills. A machine that has only ever done what AGENTS.md says has no
 # .build/artifacts at all: that directory comes from `swift build`, which this
 # project tells people not to run. Searching only there found nothing, and
 # nothing was a warning that published a release with no feed in it.

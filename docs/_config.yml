@@ -1,0 +1,3 @@
+# Agent docs live here too; keep them off the website.
+exclude:
+  - "*.md"

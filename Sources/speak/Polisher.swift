@@ -220,7 +220,7 @@ actor Polisher {
     /// needs, which is not true of the polish pass and its paragraph breaks.
     ///
     /// Asking about every sentence instead was measured and is worse, not just
-    /// slower. See the note in `CLAUDE.md`: on 360 real sentences the gate
+    /// slower. See `docs/polisher.md`: on 360 real sentences the gate
     /// skips, asking anyway changed 33 and repaired essentially one of them.
     private func repairSentences(_ engine: any PolishEngine, in chunk: String,
                                  instructions: String) async

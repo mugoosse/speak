@@ -21,7 +21,7 @@ and one real dictation through the shortcut.
 ## Traps
 
 <!--
-CLAUDE.md documents the non-obvious constraints in this codebase: ad-hoc
+AGENTS.md and docs/ document the non-obvious constraints in this codebase: ad-hoc
 signing voiding TCC grants, event tap ordering, fn being invisible to NSEvent,
 mlx-audio's inert language parameter, audio device selection ordering.
 
